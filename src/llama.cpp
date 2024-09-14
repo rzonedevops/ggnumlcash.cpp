@@ -2719,7 +2719,7 @@ struct llama_kv_cell {
 };
 
 // ring-buffer of cached KV data
-struct llama_kv_cache {
+struct llama_kv_self_cache {
     bool has_shift = false;
     bool do_defrag = false;
     bool v_trans   = true;  // the value tensor is transposed
@@ -2820,7 +2820,7 @@ struct llama_rs_seq_meta {
 };
 
 // ring-buffered tree of cached recurrent state data
-struct llama_rs_cache {
+struct llama_rs_self_cache {
 
     uint32_t head = 0; // first state used for the last slot
     uint32_t size = 0;
@@ -3444,12 +3444,12 @@ struct llama_rs_cache {
     }
 };
 
-struct llama_past {
+struct llama_kv_cache {
     // key + value cache for self attention
-    llama_kv_cache kv;
+    llama_kv_self_cache kv;
 
     // recurrent state cache for state space models
-    llama_rs_cache rs;
+    llama_rs_self_cache rs;
 
     std::vector<struct ggml_context *> ctxs;
     std::vector<ggml_backend_buffer_t> bufs;
@@ -3463,7 +3463,7 @@ struct llama_past {
         return size;
     }
 
-    ~llama_past() {
+    ~llama_kv_cache() {
         for (struct ggml_context * ctx : ctxs) {
             ggml_free(ctx);
         }
@@ -3949,7 +3949,7 @@ struct llama_context {
     struct llama_cparams        cparams;
     struct llama_sampling       sampling;
     struct llama_sbatch         sbatch;
-    struct llama_past           cache;
+    struct llama_kv_cache       cache;
     struct llama_control_vector cvec;
 
     std::unordered_map<struct llama_lora_adapter *, float> lora_adapters;
@@ -4195,8 +4195,8 @@ static size_t llama_get_device_memory(const llama_model & model, int device) {
 // kv and rs cache helpers
 //
 
-static bool llama_past_init(
-                 struct llama_past & cache,
+static bool llama_kv_cache_init(
+             struct llama_kv_cache & cache,
                const llama_context * ctx,
                          ggml_type   type_k,
                          ggml_type   type_v,
@@ -4300,11 +4300,11 @@ static bool llama_past_init(
                 // no buffer was needed, so this is fine
                 return true;
             }
-            LLAMA_LOG_ERROR("%s: failed to allocate buffer for past cache\n", __func__);
+            LLAMA_LOG_ERROR("%s: failed to allocate buffer for kv cache\n", __func__);
             return false;
         }
         ggml_backend_buffer_clear(buf, 0);
-        LLAMA_LOG_INFO("%s: %10s past cache size = %8.2f MiB\n", __func__, ggml_backend_buffer_name(buf), ggml_backend_buffer_get_size(buf)/1024.0/1024.0);
+        LLAMA_LOG_INFO("%s: %10s KV buffer size = %8.2f MiB\n", __func__, ggml_backend_buffer_name(buf), ggml_backend_buffer_get_size(buf)/1024.0/1024.0);
         cache.bufs.push_back(buf);
     }
 
@@ -4315,9 +4315,9 @@ static bool llama_past_init(
 // updates the cache head
 // Note: On success, it's important that cache.head points
 // to the first cell of the slot.
-static bool llama_past_find_slot(
-                struct llama_past & cache,
-        const struct llama_ubatch & batch) {
+static bool llama_kv_cache_find_slot(
+           struct llama_kv_cache & cache,
+       const struct llama_ubatch & batch) {
     const uint32_t kv_size  = cache.kv.size;
     const uint32_t rs_size  = cache.rs.size;
     const uint32_t n_tokens = batch.n_tokens;
@@ -4563,7 +4563,7 @@ static bool llama_past_find_slot(
 }
 
 // find how many KV cells are currently in use
-static uint32_t llama_kv_cache_cell_max(const struct llama_kv_cache & cache) {
+static uint32_t llama_kv_cache_cell_max(const struct llama_kv_self_cache & cache) {
     for (uint32_t i = cache.size; i > 0; --i) {
         const llama_kv_cell & cell = cache.cells[i - 1];
 
@@ -4576,7 +4576,7 @@ static uint32_t llama_kv_cache_cell_max(const struct llama_kv_cache & cache) {
 }
 
 // find how many recurrent state cells are currently in use
-static uint32_t llama_rs_cache_cell_max(const struct llama_rs_cache & cache) {
+static uint32_t llama_rs_cache_cell_max(const struct llama_rs_self_cache & cache) {
     for (uint32_t i = cache.size; i > 0; --i) {
         const llama_rs_cell & cell = cache.cells[i - 1];
 
@@ -4588,7 +4588,7 @@ static uint32_t llama_rs_cache_cell_max(const struct llama_rs_cache & cache) {
     return 0;
 }
 
-static void llama_past_clear(struct llama_past & cache) {
+static void llama_past_clear(struct llama_kv_cache & cache) {
     if (cache.kv.size > 0) {
         for (uint32_t i = 0; i < cache.kv.size; ++i) {
             llama_kv_cell & kv_cell = cache.kv.cells[i];
@@ -4623,7 +4623,7 @@ static void llama_past_clear(struct llama_past & cache) {
 }
 
 static llama_pos llama_past_seq_rm(
-         struct llama_past & cache,
+     struct llama_kv_cache & cache,
               llama_seq_id   seq_id,
                  llama_pos   p0,
                  llama_pos   p1) {
@@ -4722,7 +4722,7 @@ static llama_pos llama_past_seq_rm(
 }
 
 static llama_pos llama_past_seq_cp(
-         struct llama_past & cache,
+     struct llama_kv_cache & cache,
               llama_seq_id   seq_id_src,
               llama_seq_id   seq_id_dst,
                  llama_pos   p0,
@@ -4786,7 +4786,7 @@ static llama_pos llama_past_seq_cp(
     return n_past;
 }
 
-static void llama_past_seq_keep(struct llama_past & cache, llama_seq_id seq_id) {
+static void llama_past_seq_keep(struct llama_kv_cache & cache, llama_seq_id seq_id) {
     if (cache.rs.size > 0) {
         uint32_t new_head = cache.rs.size;
 
@@ -4837,7 +4837,7 @@ static void llama_past_seq_keep(struct llama_past & cache, llama_seq_id seq_id) 
 }
 
 static void llama_past_seq_add(
-         struct llama_past & cache,
+     struct llama_kv_cache & cache,
               llama_seq_id   seq_id,
                  llama_pos   p0,
                  llama_pos   p1,
@@ -4905,7 +4905,7 @@ static void llama_past_seq_add(
 }
 
 static void llama_past_seq_div(
-         struct llama_past & cache,
+     struct llama_kv_cache & cache,
               llama_seq_id   seq_id,
                  llama_pos   p0,
                  llama_pos   p1,
@@ -4945,7 +4945,7 @@ static void llama_past_seq_div(
     }
 }
 
-static llama_pos llama_past_seq_pos_max(struct llama_past & cache, llama_seq_id seq_id) {
+static llama_pos llama_past_seq_pos_max(struct llama_kv_cache & cache, llama_seq_id seq_id) {
     llama_pos result = -1;
 
     if (cache.rs.size > 0) {
@@ -4970,7 +4970,7 @@ static llama_pos llama_past_seq_pos_max(struct llama_past & cache, llama_seq_id 
     return result;
 }
 
-static void llama_kv_cache_defrag(struct llama_kv_cache & cache) {
+static void llama_kv_cache_defrag(struct llama_kv_self_cache & cache) {
     cache.do_defrag = true;
 }
 
@@ -9772,7 +9772,7 @@ static void llm_build_kv_store(
         struct ggml_context * ctx,
         const llama_hparams & hparams,
         const llama_cparams & cparams,
-       const llama_kv_cache & kv,
+  const llama_kv_self_cache & kv,
          struct ggml_cgraph * graph,
          struct ggml_tensor * k_cur,
          struct ggml_tensor * v_cur,
@@ -10129,7 +10129,7 @@ static struct ggml_tensor * llm_build_moe_ffn(
 static struct ggml_tensor * llm_build_kqv(
         struct ggml_context * ctx,
        struct llama_context & lctx,
-       const llama_kv_cache & kv,
+  const llama_kv_self_cache & kv,
          struct ggml_cgraph * graph,
          struct ggml_tensor * wo,
          struct ggml_tensor * wo_b,
@@ -10260,7 +10260,7 @@ static struct ggml_tensor * llm_build_kqv(
 static struct ggml_tensor * llm_build_kv(
         struct ggml_context * ctx,
        struct llama_context & lctx,
-       const llama_kv_cache & kv,
+  const llama_kv_self_cache & kv,
          struct ggml_cgraph * graph,
          struct ggml_tensor * wo,
          struct ggml_tensor * wo_b,
@@ -10344,7 +10344,7 @@ static struct ggml_tensor * llm_build_mamba(
                     int       il) {
     const llama_model    & model   = lctx.model;
     const llama_hparams  & hparams = model.hparams;
-    const llama_rs_cache & rs      = lctx.cache.rs;
+    const llama_rs_self_cache & rs = lctx.cache.rs;
     const int64_t d_conv  = hparams.ssm_d_conv;
     const int64_t d_inner = hparams.ssm_d_inner;
     const int64_t d_state = hparams.ssm_d_state;
@@ -10661,8 +10661,8 @@ struct llm_build_context {
     const llama_hparams  & hparams;
     const llama_cparams  & cparams;
     const llama_ubatch   & batch;
-    const llama_kv_cache & kv_self;
-    const llama_rs_cache & rs_self;
+    const llama_kv_self_cache & kv_self;
+    const llama_rs_self_cache & rs_self;
 
     const int64_t n_embd;
     const int64_t n_layer;
@@ -17367,17 +17367,11 @@ static int llama_decode_internal(
         if (hparams.causal_attn) {
             llama_kv_cache_update(&lctx);
 
-            // if we have enough unused cells before the current head ->
-            //   better to start searching from the beginning of the cache, hoping to fill it
-            if (kv_self.head > kv_self.used + 2*n_tokens) {
-                kv_self.head = 0;
-            }
-
-            if (!llama_past_find_slot(lctx.cache, ubatch)) {
+            if (!llama_kv_cache_find_slot(lctx.cache, ubatch)) {
                 return 1;
             }
 
-            // TODO: move into llama_past_find_slot
+            // TODO: move into llama_kv_cache_find_slot
             if (kv_self.size > 0) {
                 // a heuristic, to avoid attending the full cache if it is not yet utilized
                 // after enough generations, the benefit from this heuristic disappears
@@ -19557,7 +19551,7 @@ struct llama_context * llama_new_context_with_model(
         }
         ctx->backends.push_back(ctx->backend_cpu);
 
-        if (!llama_past_init(ctx->cache, ctx, type_k, type_v, cparams.offload_kqv)) {
+        if (!llama_kv_cache_init(ctx->cache, ctx, type_k, type_v, cparams.offload_kqv)) {
             LLAMA_LOG_ERROR("%s: llama_kv_cache_init() failed for self-attention cache\n", __func__);
             llama_free(ctx);
             return nullptr;
@@ -19575,7 +19569,7 @@ struct llama_context * llama_new_context_with_model(
                 memory_size_s += ggml_nbytes(s);
             }
 
-            LLAMA_LOG_INFO("%s: SSM state size = %8.2f MiB, R (%s): %7.2f MiB, S (%s): %7.2f MiB\n", __func__,
+            LLAMA_LOG_INFO("%s: RS self size = %8.2f MiB, R (%s): %7.2f MiB, S (%s): %7.2f MiB\n", __func__,
                 (float)(memory_size_r + memory_size_s) / (1024.0f * 1024.0f),
                 ggml_type_name(GGML_TYPE_F32), (float)memory_size_r / (1024.0f * 1024.0f),
                 ggml_type_name(GGML_TYPE_F32), (float)memory_size_s / (1024.0f * 1024.0f));
@@ -19592,7 +19586,7 @@ struct llama_context * llama_new_context_with_model(
                 memory_size_v += ggml_nbytes(v);
             }
 
-            LLAMA_LOG_INFO("%s: KV cache size  = %8.2f MiB, K (%s): %7.2f MiB, V (%s): %7.2f MiB\n", __func__,
+            LLAMA_LOG_INFO("%s: KV self size = %8.2f MiB, K (%s): %7.2f MiB, V (%s): %7.2f MiB\n", __func__,
                 (float)(memory_size_k + memory_size_v) / (1024.0f * 1024.0f),
                 ggml_type_name(type_k), (float)memory_size_k / (1024.0f * 1024.0f),
                 ggml_type_name(type_v), (float)memory_size_v / (1024.0f * 1024.0f));
@@ -20052,7 +20046,7 @@ void llama_kv_cache_view_free(struct llama_kv_cache_view * view) {
 }
 
 void llama_kv_cache_view_update(const struct llama_context * ctx, struct llama_kv_cache_view * view) {
-    const llama_kv_cache & kv_self = ctx->cache.kv;
+    const llama_kv_self_cache & kv_self = ctx->cache.kv;
     if (uint32_t(view->n_cells) < kv_self.size || view->cells == nullptr) {
         view->n_cells = int32_t(kv_self.size);
         void * p = realloc(view->cells, sizeof(struct llama_kv_cache_view_cell) * view->n_cells);
@@ -20333,7 +20327,7 @@ struct llama_data_write {
         }
     }
 
-    void write_kv_cache_meta(const llama_kv_cache & kv_self, const std::vector<std::pair<uint32_t, uint32_t>> & cell_ranges, llama_seq_id seq_id = -1) {
+    void write_kv_cache_meta(const llama_kv_self_cache & kv_self, const std::vector<std::pair<uint32_t, uint32_t>> & cell_ranges, llama_seq_id seq_id = -1) {
 
         for (const auto & range : cell_ranges) {
             for (uint32_t i = range.first; i < range.second; ++i) {
@@ -20353,7 +20347,7 @@ struct llama_data_write {
         }
     }
 
-    void write_rs_cache_meta(const llama_rs_cache & rs_self, const std::vector<std::pair<uint32_t, uint32_t>> & cell_ranges, llama_seq_id seq_id = -1) {
+    void write_rs_cache_meta(const llama_rs_self_cache & rs_self, const std::vector<std::pair<uint32_t, uint32_t>> & cell_ranges, llama_seq_id seq_id = -1) {
 
         for (const auto & range : cell_ranges) {
             for (uint32_t i = range.first; i < range.second; ++i) {
@@ -20374,7 +20368,7 @@ struct llama_data_write {
     }
 
     void write_kv_cache_data(const struct llama_context * ctx, const std::vector<std::pair<uint32_t, uint32_t>> & cell_ranges) {
-        const struct llama_kv_cache & kv_self = ctx->cache.kv;
+        const struct llama_kv_self_cache & kv_self = ctx->cache.kv;
         const struct llama_hparams & hparams = ctx->model.hparams;
 
         const uint32_t v_trans = kv_self.v_trans ? 1 : 0;
@@ -20455,7 +20449,7 @@ struct llama_data_write {
     }
 
     void write_rs_cache_data(const struct llama_context * ctx, const std::vector<std::pair<uint32_t, uint32_t>> & cell_ranges) {
-        const struct llama_rs_cache & rs_self = ctx->cache.rs;
+        const struct llama_rs_self_cache & rs_self = ctx->cache.rs;
         const struct llama_hparams & hparams = ctx->model.hparams;
 
         const uint32_t n_layer = hparams.n_layer;
@@ -20503,8 +20497,8 @@ struct llama_data_write {
     }
 
     void write_cache(const struct llama_context * ctx, llama_seq_id seq_id = -1) {
-        const struct llama_kv_cache & kv_self = ctx->cache.kv;
-        const struct llama_rs_cache & rs_self = ctx->cache.rs;
+        const struct llama_kv_self_cache & kv_self = ctx->cache.kv;
+        const struct llama_rs_self_cache & rs_self = ctx->cache.rs;
         std::vector<std::pair<uint32_t, uint32_t>> kv_cell_ranges; // ranges, from inclusive, to exclusive
         std::vector<std::pair<uint32_t, uint32_t>> rs_cell_ranges; // ranges, from inclusive, to exclusive
         uint32_t kv_cell_count = 0;
@@ -20692,8 +20686,8 @@ struct llama_data_read {
 
     bool read_kv_cache_meta(struct llama_context * ctx, uint32_t cell_count) {
         if (cell_count == 0) { return true; }
-        struct llama_past & cache = ctx->cache;
-        struct llama_kv_cache & kv_self = cache.kv;
+        struct llama_kv_cache & cache = ctx->cache;
+        struct llama_kv_self_cache & kv_self = cache.kv;
 
         // whole KV cache restore
 
@@ -20734,8 +20728,8 @@ struct llama_data_read {
 
     bool read_rs_cache_meta(struct llama_context * ctx, uint32_t cell_count) {
         if (cell_count == 0) { return true; }
-        struct llama_past & cache = ctx->cache;
-        struct llama_rs_cache & rs_self = cache.rs;
+        struct llama_kv_cache & cache = ctx->cache;
+        struct llama_rs_self_cache & rs_self = cache.rs;
 
         // whole RS cache restore
 
@@ -20781,7 +20775,7 @@ struct llama_data_read {
     bool read_kv_cache_data(struct llama_context * ctx, uint32_t cell_count) {
         if (cell_count == 0) { return true; }
         const struct llama_hparams & hparams = ctx->model.hparams;
-        struct llama_kv_cache & kv_self = ctx->cache.kv;
+        struct llama_kv_self_cache & kv_self = ctx->cache.kv;
         uint32_t v_trans;
         uint32_t n_layer;
         read_to(&v_trans, sizeof(v_trans));
@@ -20895,7 +20889,7 @@ struct llama_data_read {
     bool read_rs_cache_data(struct llama_context * ctx, uint32_t cell_count) {
         if (cell_count == 0) { return true; }
         const struct llama_hparams & hparams = ctx->model.hparams;
-        struct llama_rs_cache & rs_self = ctx->cache.rs;
+        struct llama_rs_self_cache & rs_self = ctx->cache.rs;
         uint32_t n_layer;
         read_to(&n_layer, sizeof(n_layer));
 
@@ -20970,7 +20964,7 @@ struct llama_data_read {
 
         // single sequence
 
-        llama_past & cache = ctx->cache;
+        llama_kv_cache & cache = ctx->cache;
         llama_ubatch batch = ctx->sbatch.reserve_ubatch(cell_count, /* has_embd */ false);
         batch.n_tokens = cell_count;
         batch.n_seq_tokens = cell_count;
@@ -20992,7 +20986,7 @@ struct llama_data_read {
         }
         batch.n_seq_id[0] = 1;
         batch.seq_id[0] = &seq_id;
-        if (!llama_past_find_slot(cache, batch)) {
+        if (!llama_kv_cache_find_slot(cache, batch)) {
             LLAMA_LOG_ERROR("%s: failed to find available cells in kv cache\n", __func__);
             return false;
         }
