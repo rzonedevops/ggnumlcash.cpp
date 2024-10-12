@@ -304,9 +304,9 @@ static void print_usage(int /* argc */, char ** argv) {
     printf("  --cpu-strict <0|1>                        (default: %s)\n", join(cmd_params_defaults.cpu_strict, ",").c_str());
     printf("  --poll <0...100>                          (default: %s)\n", join(cmd_params_defaults.poll, ",").c_str());
     printf("  -ngl, --n-gpu-layers <n>                  (default: %s)\n", join(cmd_params_defaults.n_gpu_layers, ",").c_str());
-#ifdef GGML_USE_RPC
-    printf("  -rpc, --rpc <rpc_servers>                 (default: %s)\n", join(cmd_params_defaults.rpc_servers, ",").c_str());
-#endif
+    if (llama_supports_rpc()) {
+        printf("  -rpc, --rpc <rpc_servers>                 (default: %s)\n", join(cmd_params_defaults.rpc_servers, ",").c_str());
+    }
     printf("  -sm, --split-mode <none|layer|row>        (default: %s)\n", join(transform_to_str(cmd_params_defaults.split_mode, split_mode_str), ",").c_str());
     printf("  -mg, --main-gpu <i>                       (default: %s)\n", join(cmd_params_defaults.main_gpu, ",").c_str());
     printf("  -nkvo, --no-kv-offload <0|1>              (default: %s)\n", join(cmd_params_defaults.no_kv_offload, ",").c_str());
@@ -439,6 +439,9 @@ static cmd_params parse_cmd_params(int argc, char ** argv) {
                 }
                 types.push_back(gt);
             }
+            if (invalid_param) {
+                break;
+            }
             params.type_k.insert(params.type_k.end(), types.begin(), types.end());
         } else if (arg == "-ctv" || arg == "--cache-type-v") {
             if (++i >= argc) {
@@ -454,6 +457,9 @@ static cmd_params parse_cmd_params(int argc, char ** argv) {
                     break;
                 }
                 types.push_back(gt);
+            }
+            if (invalid_param) {
+                break;
             }
             params.type_v.insert(params.type_v.end(), types.begin(), types.end());
         } else if (arg == "-t" || arg == "--threads") {
@@ -491,14 +497,12 @@ static cmd_params parse_cmd_params(int argc, char ** argv) {
             }
             auto p = string_split<int>(argv[i], split_delim);
             params.n_gpu_layers.insert(params.n_gpu_layers.end(), p.begin(), p.end());
-#ifdef GGML_USE_RPC
-        } else if (arg == "-rpc" || arg == "--rpc") {
+        } else if (llama_supports_rpc() && (arg == "-rpc" || arg == "--rpc")) {
             if (++i >= argc) {
                 invalid_param = true;
                 break;
             }
             params.rpc_servers.push_back(argv[i]);
-#endif
         } else if (arg == "-sm" || arg == "--split-mode") {
             if (++i >= argc) {
                 invalid_param = true;
@@ -519,6 +523,9 @@ static cmd_params parse_cmd_params(int argc, char ** argv) {
                     break;
                 }
                 modes.push_back(mode);
+            }
+            if (invalid_param) {
+                break;
             }
             params.split_mode.insert(params.split_mode.end(), modes.begin(), modes.end());
         } else if (arg == "-mg" || arg == "--main-gpu") {

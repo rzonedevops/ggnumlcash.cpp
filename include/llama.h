@@ -102,6 +102,7 @@ extern "C" {
         LLAMA_VOCAB_PRE_TYPE_BLOOM          = 23,
         LLAMA_VOCAB_PRE_TYPE_GPT3_FINNISH   = 24,
         LLAMA_VOCAB_PRE_TYPE_EXAONE         = 25,
+        LLAMA_VOCAB_PRE_TYPE_CHAMELEON      = 26,
     };
 
     enum llama_rope_type {
@@ -192,6 +193,7 @@ extern "C" {
         LLAMA_POOLING_TYPE_MEAN = 1,
         LLAMA_POOLING_TYPE_CLS  = 2,
         LLAMA_POOLING_TYPE_LAST = 3,
+        LLAMA_POOLING_TYPE_RANK = 4, // used by reranking models to attach the classification head to the graph
     };
 
     enum llama_attention_type {
@@ -201,9 +203,9 @@ extern "C" {
     };
 
     enum llama_split_mode {
-        LLAMA_SPLIT_MODE_NONE    = 0, // single GPU
-        LLAMA_SPLIT_MODE_LAYER   = 1, // split layers and KV across GPUs
-        LLAMA_SPLIT_MODE_ROW     = 2, // split rows across GPUs
+        LLAMA_SPLIT_MODE_NONE  = 0, // single GPU
+        LLAMA_SPLIT_MODE_LAYER = 1, // split layers and KV across GPUs
+        LLAMA_SPLIT_MODE_ROW   = 2, // split rows across GPUs
     };
 
     // TODO: simplify (https://github.com/ggerganov/llama.cpp/pull/9294#pullrequestreview-2286561979)
@@ -431,6 +433,7 @@ extern "C" {
     LLAMA_API bool llama_supports_mmap       (void);
     LLAMA_API bool llama_supports_mlock      (void);
     LLAMA_API bool llama_supports_gpu_offload(void);
+    LLAMA_API bool llama_supports_rpc        (void);
 
     LLAMA_API uint32_t llama_n_ctx      (const struct llama_context * ctx);
     LLAMA_API uint32_t llama_n_batch    (const struct llama_context * ctx);
@@ -441,6 +444,7 @@ extern "C" {
     LLAMA_API int32_t llama_n_ctx_train(const struct llama_model * model);
     LLAMA_API int32_t llama_n_embd     (const struct llama_model * model);
     LLAMA_API int32_t llama_n_layer    (const struct llama_model * model);
+    LLAMA_API int32_t llama_n_head     (const struct llama_model * model);
 
     LLAMA_API const struct llama_model * llama_get_model(const struct llama_context * ctx);
 
@@ -920,7 +924,8 @@ extern "C" {
 
     // Get the embeddings for a sequence id
     // Returns NULL if pooling_type is LLAMA_POOLING_TYPE_NONE
-    // shape: [n_embd] (1-dimensional)
+    // when pooling_type == LLAMA_POOLING_TYPE_RANK, returns float[1] with the rank of the sequence
+    // otherwise: float[n_embd] (1-dimensional)
     LLAMA_API float * llama_get_embeddings_seq(struct llama_context * ctx, llama_seq_id seq_id);
 
     //
@@ -942,6 +947,7 @@ extern "C" {
     // Special tokens
     LLAMA_API llama_token llama_token_bos(const struct llama_model * model); // beginning-of-sentence
     LLAMA_API llama_token llama_token_eos(const struct llama_model * model); // end-of-sentence
+    LLAMA_API llama_token llama_token_eot(const struct llama_model * model); // end-of-turn
     LLAMA_API llama_token llama_token_cls(const struct llama_model * model); // classification
     LLAMA_API llama_token llama_token_sep(const struct llama_model * model); // sentence separator
     LLAMA_API llama_token llama_token_nl (const struct llama_model * model); // next-line
@@ -950,14 +956,22 @@ extern "C" {
     LLAMA_API bool llama_add_bos_token(const struct llama_model * model);
     LLAMA_API bool llama_add_eos_token(const struct llama_model * model);
 
-    // Codellama infill tokens
-    LLAMA_API llama_token llama_token_prefix(const struct llama_model * model); // Beginning of infill prefix
-    LLAMA_API llama_token llama_token_middle(const struct llama_model * model); // Beginning of infill middle
-    LLAMA_API llama_token llama_token_suffix(const struct llama_model * model); // Beginning of infill suffix
-    LLAMA_API llama_token llama_token_eot   (const struct llama_model * model); // End of infill middle
+    // infill tokens
+    DEPRECATED(LLAMA_API llama_token llama_token_prefix(const struct llama_model * model), "use llama_token_fim_pre instead");
+    DEPRECATED(LLAMA_API llama_token llama_token_middle(const struct llama_model * model), "use llama_token_fim_mid instead");
+    DEPRECATED(LLAMA_API llama_token llama_token_suffix(const struct llama_model * model), "use llama_token_fim_suf instead");
+
+    LLAMA_API llama_token llama_token_fim_pre(const struct llama_model * model);
+    LLAMA_API llama_token llama_token_fim_suf(const struct llama_model * model);
+    LLAMA_API llama_token llama_token_fim_mid(const struct llama_model * model);
+    LLAMA_API llama_token llama_token_fim_pad(const struct llama_model * model);
+    LLAMA_API llama_token llama_token_fim_rep(const struct llama_model * model);
+    LLAMA_API llama_token llama_token_fim_sep(const struct llama_model * model);
 
     //
     // Tokenization
+    //
+    // The API is thread-safe.
     //
 
     /// @details Convert the provided text into tokens.
@@ -1115,6 +1129,7 @@ extern "C" {
     LLAMA_API struct llama_sampler * llama_sampler_init_dist       (uint32_t seed);
 
     /// @details Sorts candidate tokens by their logits in descending order and calculate probabilities based on logits.
+    /// NOTE: Avoid using on the full vocabulary as the sorting can become slow. For example, apply top-k or top-p sampling first.
     LLAMA_API struct llama_sampler * llama_sampler_init_softmax    (void);
 
     /// @details Top-K sampling described in academic paper "The Curious Case of Neural Text Degeneration" https://arxiv.org/abs/1904.09751
