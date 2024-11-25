@@ -1566,7 +1566,7 @@ int main(int argc, char ** argv) {
 
         test t(inst, lmodel, ctx);
 
-        llama_past_clear(ctx);
+        llama_kv_cache_clear(ctx);
 
         // cool off before the test
         if (params.delay) {
@@ -1606,7 +1606,7 @@ int main(int argc, char ** argv) {
         }
 
         for (int i = 0; i < params.reps; i++) {
-            llama_past_clear(ctx);
+            llama_kv_cache_clear(ctx);
 
             uint64_t t_start = get_time_ns();
 

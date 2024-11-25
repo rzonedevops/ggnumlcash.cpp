@@ -332,10 +332,6 @@ int main(int argc, char ** argv) {
             }
             n_matching_session_tokens++;
         }
-
-        // remove any "future" tokens that we might have inherited from the previous session
-        n_matching_session_tokens = llama_past_seq_rm(ctx, -1, n_matching_session_tokens, -1);
-
         if (params.prompt.empty() && n_matching_session_tokens == embd_inp.size()) {
             LOG_INF("%s: using full prompt from session file\n", __func__);
         } else if (n_matching_session_tokens >= embd_inp.size()) {
@@ -347,6 +343,9 @@ int main(int argc, char ** argv) {
             LOG_INF("%s: session file matches %zu / %zu tokens of prompt\n",
                     __func__, n_matching_session_tokens, embd_inp.size());
         }
+
+        // remove any "future" tokens that we might have inherited from the previous session
+        llama_kv_cache_seq_rm(ctx, -1, n_matching_session_tokens, -1);
     }
 
     LOG_DBG("recalculate the cached logits (check): embd_inp.size() %zu, n_matching_session_tokens %zu, embd_inp.size() %zu, session_tokens.size() %zu\n",
@@ -358,8 +357,6 @@ int main(int argc, char ** argv) {
         LOG_DBG("recalculate the cached logits (do): session_tokens.resize( %zu )\n", embd_inp.size() - 1);
 
         session_tokens.resize(embd_inp.size() - 1);
-    } else {
-        session_tokens.resize(n_matching_session_tokens);
     }
 
     // number of tokens to keep when resetting context
@@ -609,9 +606,9 @@ int main(int argc, char ** argv) {
                     LOG_DBG("div:   [%6d, %6d] / %6d -> [%6d, %6d]\n", ga_i + ib*bd, ga_i + ib*bd + ga_w, ga_n, (ga_i + ib*bd)/ga_n, (ga_i + ib*bd + ga_w)/ga_n);
                     LOG_DBG("shift: [%6d, %6d] + %6d -> [%6d, %6d]\n", ga_i + ib*bd + ga_w, n_past + ib*bd, dd, ga_i + ib*bd + ga_w + dd, n_past + ib*bd + dd);
 
-                    llama_past_seq_add(ctx, 0, ga_i,                n_past,              ib*bd);
-                    llama_past_seq_div(ctx, 0, ga_i + ib*bd,        ga_i + ib*bd + ga_w, ga_n);
-                    llama_past_seq_add(ctx, 0, ga_i + ib*bd + ga_w, n_past + ib*bd,      dd);
+                    llama_kv_cache_seq_add(ctx, 0, ga_i,                n_past,              ib*bd);
+                    llama_kv_cache_seq_div(ctx, 0, ga_i + ib*bd,        ga_i + ib*bd + ga_w, ga_n);
+                    llama_kv_cache_seq_add(ctx, 0, ga_i + ib*bd + ga_w, n_past + ib*bd,      dd);
 
                     n_past -= bd;
 
@@ -625,8 +622,6 @@ int main(int argc, char ** argv) {
             if (n_session_consumed < (int) session_tokens.size()) {
                 size_t i = 0;
                 for ( ; i < embd.size(); i++) {
-                    // TODO: are the session tokens guaranteed to all be matching here?
-                    //       Should n_matching_session_tokens be re-used instead?
                     if (embd[i] != session_tokens[n_session_consumed]) {
                         session_tokens.resize(n_session_consumed);
                         break;

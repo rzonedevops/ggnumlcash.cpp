@@ -966,7 +966,7 @@ struct common_init_result common_init_from_params(common_params & params) {
         if (llama_model_has_decoder(model)) {
             llama_decode(lctx, llama_batch_get_one(tmp.data(), std::min(tmp.size(), (size_t) params.n_batch), 0, 0));
         }
-        llama_past_clear(lctx);
+        llama_kv_cache_clear(lctx);
         llama_synchronize(lctx);
         llama_perf_context_reset(lctx);
     }

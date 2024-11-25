@@ -1029,7 +1029,7 @@ struct server_context {
         SRV_DBG("%s", "clearing KV cache\n");
 
         // clear the entire KV cache
-        llama_past_clear(ctx);
+        llama_kv_cache_clear(ctx);
         clean_kv_cache = false;
     }
 
@@ -1760,7 +1760,7 @@ struct server_context {
 
                     // Erase token cache
                     const size_t n_erased = slot->cache_tokens.size();
-                    llama_past_seq_rm(ctx, slot->id + 1, -1, -1);
+                    llama_kv_cache_seq_rm(ctx, slot->id + 1, -1, -1);
                     slot->cache_tokens.clear();
 
                     server_task_result result;
