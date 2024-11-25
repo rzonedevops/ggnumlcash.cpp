@@ -80,6 +80,11 @@ def step_server_config(context, server_fqdn: str, server_port: str):
     context.lora_file = None
     context.disable_ctx_shift = False
 
+    # infill
+    context.infill_input_extra = None
+    context.infill_input_suffix = ''
+    context.infill_input_prefix = ''
+
     context.tasks_result = []
     context.concurrent_tasks = []
     context.prompts = []
@@ -255,13 +260,13 @@ async def step_wait_for_server_status(context, expecting_status: Literal['health
 async def step_all_slots_status(context, expected_slot_status_string: Literal['idle', 'busy'] | str):
     match expected_slot_status_string:
         case 'idle':
-            expected_slot_status = 0
+            expected_slot_status = False
         case 'busy':
-            expected_slot_status = 1
+            expected_slot_status = True
         case _:
             assert False, "unknown status"
 
-    expected_slots = [{'id': slot_id, 'state': expected_slot_status}
+    expected_slots = [{'id': slot_id, 'is_processing': expected_slot_status}
                       for slot_id in range(context.n_slots)]
     await request_slots_status(context, expected_slots)
 
@@ -289,6 +294,28 @@ async def step_request_completion(context, api_error: Literal['raised'] | str):
     elif api_error.isdigit():
         api_error_code = int(api_error)
         assert completion == api_error_code, f"completion must be an {api_error_code} status code: {completion}"
+
+
+@step('an infill request with {api_error} api error')
+@async_run_until_complete
+async def step_request_completion(context, api_error: Literal['raised'] | str):
+    if api_error != 'no':
+        raise ValueError(f'api_error={api_error} is not yet implemented')
+    payload = {
+        "prompt": context.prompts[0],
+        "input_suffix": context.infill_input_suffix,
+        "input_prefix": context.infill_input_prefix,
+        "n_predict": context.n_predict,
+        "seed": context.seed,
+        "temperature": context.temperature,
+    }
+    if context.infill_input_extra is not None:
+        payload['input_extra'] = context.infill_input_extra
+    async with aiohttp.ClientSession(timeout=DEFAULT_TIMEOUT_SECONDS) as session:
+        async with session.post(f'{context.base_url}/infill',
+                                json=payload) as response:
+            assert response.status == 200
+            context.tasks_result = [await response.json()]
 
 
 @step('{predicted_n:d} tokens are predicted matching {re_content}')
@@ -537,6 +564,25 @@ def step_a_prompt(context):
 def step_a_prompt_prompt(context, prompt):
     context.prompts.append(prompt)
     context.n_prompts = len(context.prompts)
+
+
+# TODO: allow this to be repeated
+@step('an infill input extra {filename} {text}')
+def step_infill_input_extra(context, filename, text):
+    if filename == 'none':
+        context.infill_input_extra = None
+    else:
+        context.infill_input_extra = [{'filename': filename, 'text': text}]
+
+
+@step('an infill input suffix {text}')
+def step_infill_input_suffix(context, text):
+    context.infill_input_suffix = text
+
+
+@step('an infill input prefix {text}')
+def step_infill_input_prefix(context, text):
+    context.infill_input_prefix = text
 
 
 @step('{num_prompts:d} prompts {prompt} with seed {seed:d}')
@@ -1308,8 +1354,8 @@ async def wait_for_slots_status(context,
                 if status_code == 503 and status_code == expected_http_status_code:
                     return
                 if status_code == 200 and status_code == expected_http_status_code:
-                    n_slots_idle = sum(1 if slot["state"] == 0 else 0 for slot in slots)
-                    n_slots_processing = sum(1 if slot["state"] != 0 else 0 for slot in slots)
+                    n_slots_idle = sum(1 if not slot["is_processing"] else 0 for slot in slots)
+                    n_slots_processing = sum(1 if slot["is_processing"] else 0 for slot in slots)
                     if ((slots_idle is None or slots_idle == n_slots_idle)
                         and (slots_processing is None or slots_processing == n_slots_processing)):
                         return

@@ -46,6 +46,13 @@ if (WIN32)
     add_compile_definitions(_CRT_SECURE_NO_WARNINGS)
 endif()
 
+if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
+    add_compile_options("$<$<COMPILE_LANGUAGE:C>:/source-charset:utf-8>")
+    add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:/source-charset:utf-8>")
+    add_compile_options("$<$<COMPILE_LANGUAGE:C>:/execution-charset:utf-8>")
+    add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:/execution-charset:utf-8>")
+endif()
+
 #
 # option list
 #
@@ -86,6 +93,10 @@ set(GGML_FATAL_WARNINGS     ${LLAMA_FATAL_WARNINGS})
 # change the default for these ggml options
 if (NOT DEFINED GGML_LLAMAFILE)
     set(GGML_LLAMAFILE_DEFAULT ON)
+endif()
+
+if (NOT DEFINED GGML_AMX)
+    set(GGML_AMX ON)
 endif()
 
 if (NOT DEFINED GGML_CUDA_GRAPHS)
@@ -135,7 +146,6 @@ set(LLAMA_INSTALL_VERSION 0.0.${BUILD_NUMBER})
 set(LLAMA_INCLUDE_INSTALL_DIR ${CMAKE_INSTALL_INCLUDEDIR} CACHE PATH "Location of header  files")
 set(LLAMA_LIB_INSTALL_DIR     ${CMAKE_INSTALL_LIBDIR}     CACHE PATH "Location of library files")
 set(LLAMA_BIN_INSTALL_DIR     ${CMAKE_INSTALL_BINDIR}     CACHE PATH "Location of binary  files")
-
 
 # At the moment some compile definitions are placed within the ggml/src
 # directory but not exported on the `ggml` target. This could be improved by
