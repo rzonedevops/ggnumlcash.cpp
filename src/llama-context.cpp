@@ -33,6 +33,9 @@ llama_context::llama_context(
         throw std::runtime_error("n_seq_max must be <= " + std::to_string(LLAMA_MAX_SEQ));
     }
 
+    const char * LLAMA_HT = getenv("LLAMA_HT");
+    cparams.n_seq_virt = LLAMA_HT ? cparams.n_seq_max : 1;
+
     cparams.n_threads        = params.n_threads;
     cparams.n_threads_batch  = params.n_threads_batch;
     cparams.yarn_ext_factor  = params.yarn_ext_factor;
@@ -1308,7 +1311,8 @@ ggml_cgraph * llama_context::graph_reserve(uint32_t n_tokens, uint32_t n_seqs, u
     this->n_outputs = n_outputs;
 
     llama_batch_allocr balloc(model.hparams.n_pos_per_embd());
-    llama_ubatch ubatch = balloc.ubatch_reserve(n_tokens/n_seqs, n_seqs);
+    //llama_ubatch ubatch = balloc.ubatch_reserve(n_tokens/n_seqs, n_seqs);
+    llama_ubatch ubatch = balloc.ubatch_reserve(n_tokens, 1);
 
     auto * gf = graph_init();
     auto res = graph_build(ctx_compute.get(), gf, ubatch, LLM_GRAPH_TYPE_DEFAULT, mctx);
