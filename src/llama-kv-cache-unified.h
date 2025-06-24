@@ -39,10 +39,28 @@ public:
         // data for ggml_set_rows
         using idx_vec_t = std::vector<uint32_t>;
 
-        idx_vec_t idxs;
+        std::vector<llama_seq_id> seq_id_virt;
+        std::vector<idx_vec_t>    idxs;
 
         uint32_t head() const {
-            return idxs[0];
+            GGML_ASSERT(idxs.size() == 1);
+
+            return idxs[0][0];
+        }
+
+        void resize(size_t n) {
+            seq_id_virt.resize(n);
+            idxs.resize(n);
+        }
+
+        size_t size() const {
+            GGML_ASSERT(idxs.size() == seq_id_virt.size());
+
+            return idxs[0].size();
+        }
+
+        size_t n_seq_virt() const {
+            return seq_id_virt.size();
         }
 
         bool empty() const {
@@ -190,9 +208,9 @@ private:
 
     // the current index from where we start searching for a free slot in the ring buffer of KV cells (see find_slot())
     // note: this is not part of the KV state and it's only used to speed-up the find_slot() method
-    uint32_t v_heads[LLAMA_MAX_SEQ];
+    std::vector<uint32_t> v_heads;
 
-    llama_kv_cells_unified v_cells[LLAMA_MAX_SEQ];
+    std::vector<llama_kv_cells_unified> v_cells;
 
     std::vector<uint32_t> seq_virt_idx;
 
