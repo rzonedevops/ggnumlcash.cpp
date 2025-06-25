@@ -166,6 +166,8 @@ bool llama_batch_allocr::init(
 
                 // note: tracking the other way around is not necessary for now
                 //seq_cpl[s0][s1] = true;
+
+                has_cpl = true;
             }
         }
     }
@@ -403,6 +405,10 @@ uint32_t llama_batch_allocr::get_n_outputs() const {
     return n_outputs;
 }
 
+uint32_t llama_batch_allocr::get_n_used() const {
+    return n_used;
+}
+
 std::vector<int32_t> & llama_batch_allocr::get_out_ids() {
     return out_ids;
 }
@@ -417,6 +423,8 @@ llama_pos llama_batch_allocr::seq_pos_max(llama_seq_id seq_id) const {
 
 void llama_batch_allocr::split_reset() {
     out_ids.clear();
+
+    n_used = 0;
 
     used.clear();
     used.resize(get_n_tokens(), false);
@@ -442,6 +450,7 @@ llama_ubatch llama_batch_allocr::split_simple(uint32_t n_ubatch) {
         idxs.push_back(cur_idx);
 
         used[cur_idx] = true;
+        ++n_used;
 
         ++cur_idx;
 
@@ -458,6 +467,12 @@ llama_ubatch llama_batch_allocr::split_simple(uint32_t n_ubatch) {
 }
 
 llama_ubatch llama_batch_allocr::split_equal(uint32_t n_ubatch, bool sequential) {
+    if (sequential && has_cpl) {
+        LLAMA_LOG_ERROR("%s: sequential split is not supported when there are coupled sequences in the input batch\n", __func__);
+
+        return {};
+    }
+
     std::vector<seq_set_t> cur_seq_set;
 
     llama_seq_id last_seq_id = -1;
@@ -536,6 +551,7 @@ llama_ubatch llama_batch_allocr::split_equal(uint32_t n_ubatch, bool sequential)
             idxs_per_seq[s].push_back(idx);
 
             used[idx] = true;
+            ++n_used;
 
             ++cur_idx[s];
         }
@@ -577,6 +593,7 @@ llama_ubatch llama_batch_allocr::split_seq(uint32_t n_ubatch) {
         idxs.push_back(cur_idx);
 
         used[cur_idx] = true;
+        ++n_used;
 
         if (idxs.size() >= n_ubatch) {
             break;

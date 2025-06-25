@@ -119,6 +119,11 @@ llama_memory_context_ptr llama_kv_cache_unified_iswa::init_batch(llama_batch_all
             ubatches.push_back(std::move(ubatch)); // NOLINT
         }
 
+        if (balloc.get_n_used() < balloc.get_n_tokens()) {
+            // failed to find a suitable split
+            break;
+        }
+
         auto sinfos_base = kv_base->prepare(ubatches);
         if (sinfos_base.empty()) {
             break;
@@ -148,6 +153,11 @@ llama_memory_context_ptr llama_kv_cache_unified_iswa::init_batch(llama_batch_all
             }
 
             ubatches.push_back(std::move(ubatch)); // NOLINT
+        }
+
+        if (balloc.get_n_used() < balloc.get_n_tokens()) {
+            // failed to find a suitable split
+            break;
         }
 
         auto sinfos_base = kv_base->prepare(ubatches);
