@@ -102,7 +102,7 @@ llama_memory_context_ptr llama_kv_cache_unified_iswa::init_batch(llama_batch_all
     // first try simple split
     do {
         if (n_seq_virt > 1) {
-            // requires equal splits
+            // requires equal splits, so we skip the simple split
             break;
         }
 
@@ -141,7 +141,7 @@ llama_memory_context_ptr llama_kv_cache_unified_iswa::init_batch(llama_batch_all
 
         std::vector<llama_ubatch> ubatches;
         while (true) {
-            auto ubatch = balloc.split_equal(n_ubatch);
+            auto ubatch = balloc.split_equal(n_ubatch, n_seq_virt > 1);
 
             if (ubatch.n_tokens == 0) {
                 break;

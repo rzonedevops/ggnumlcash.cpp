@@ -457,7 +457,7 @@ llama_ubatch llama_batch_allocr::split_simple(uint32_t n_ubatch) {
     return ubatch_add(idxs, idxs.size(), false);
 }
 
-llama_ubatch llama_batch_allocr::split_equal(uint32_t n_ubatch) {
+llama_ubatch llama_batch_allocr::split_equal(uint32_t n_ubatch, bool sequential) {
     std::vector<seq_set_t> cur_seq_set;
 
     llama_seq_id last_seq_id = -1;
@@ -479,7 +479,9 @@ llama_ubatch llama_batch_allocr::split_equal(uint32_t n_ubatch) {
         }
 
         // accept only increasing sequence ids
-        add = add && (cur_seq_set.empty() || batch.seq_id[i][0] == last_seq_id + 1);
+        if (sequential) {
+            add = add && (cur_seq_set.empty() || batch.seq_id[i][0] == last_seq_id + 1);
+        }
 
         if (add) {
             cur_seq_set.push_back(seq_set[i]);
