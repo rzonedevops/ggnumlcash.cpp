@@ -290,10 +290,8 @@ int main(int argc, char ** argv) {
             for (int i = 1; i <= n_clients; ++i) {
                 llama_memory_seq_rm(mem, i, -1, -1);
 
-                if (is_sp_shared) {
-                    // but keep the system prompt
-                    llama_memory_seq_cp(mem, 0, i, -1, -1);
-                }
+                // but keep the system prompt
+                llama_memory_seq_cp(mem, 0, i, -1, -1);
             }
 
             LOG_INF("%s: clearing the KV cache\n", __func__);
@@ -452,11 +450,8 @@ int main(int argc, char ** argv) {
                     }
 
                     // delete only the generated part of the sequence, i.e. keep the system prompt in the cache
-                    llama_memory_seq_rm(mem, client.id + 1, -1, -1);
-
-                    if (is_sp_shared) {
-                        llama_memory_seq_cp(mem, 0, client.id + 1, -1, -1);
-                    }
+                    llama_memory_seq_rm(mem,    client.id + 1, -1, -1);
+                    llama_memory_seq_cp(mem, 0, client.id + 1, -1, -1);
 
                     const auto t_main_end = ggml_time_us();
 
