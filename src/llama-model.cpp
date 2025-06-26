@@ -9198,9 +9198,7 @@ struct llm_build_starcoder2 : public llm_graph_context {
 };
 
 struct llm_build_mamba : public llm_graph_context {
-    const llama_model & model;
-
-    llm_build_mamba(const llama_model & model, const llm_graph_params & params, ggml_cgraph * gf) : llm_graph_context(params), model(model) {
+    llm_build_mamba(const llama_model & model, const llm_graph_params & params, ggml_cgraph * gf) : llm_graph_context(params) {
         ggml_tensor * cur;
         ggml_tensor * inpL;
 
@@ -9219,9 +9217,9 @@ struct llm_build_mamba : public llm_graph_context {
             cb(cur, "attn_norm", il);
 
             if (model.arch == LLM_ARCH_MAMBA2) {
-                cur = build_mamba2_layer(rs_inp, gf, cur, ubatch, il);
+                cur = build_mamba2_layer(rs_inp, gf, cur, model, ubatch, il);
             } else {
-                cur = build_mamba_layer(rs_inp, gf, cur, ubatch, il);
+                cur = build_mamba_layer(rs_inp, gf, cur, model, ubatch, il);
             }
 
             if (il == n_layer - 1 && inp_out_ids) {
@@ -9260,6 +9258,7 @@ struct llm_build_mamba : public llm_graph_context {
         llm_graph_input_rs * inp,
                ggml_cgraph * gf,
                ggml_tensor * cur,
+         const llama_model & model,
         const llama_ubatch & ubatch,
                        int   il) const {
         const auto * mctx_cur = static_cast<const llama_memory_recurrent_context *>(mctx);
@@ -9398,6 +9397,7 @@ struct llm_build_mamba : public llm_graph_context {
         llm_graph_input_rs * inp,
              ggml_cgraph * gf,
              ggml_tensor * cur,
+       const llama_model & model,
       const llama_ubatch & ubatch,
                      int   il) const {
         const auto * mctx_cur = static_cast<const llama_memory_recurrent_context *>(mctx);
