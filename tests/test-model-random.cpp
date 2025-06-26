@@ -573,6 +573,7 @@ struct model_variant {
                     }
                 } break;
             case LLM_ARCH_GEMMA3:
+            case LLM_ARCH_GEMMA3N:
             case LLM_ARCH_STARCODER2:
                 break;
             case LLM_ARCH_MAMBA:
