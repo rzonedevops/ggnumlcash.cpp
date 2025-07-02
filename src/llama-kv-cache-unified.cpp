@@ -624,14 +624,15 @@ llama_kv_cache_unified::slot_info llama_kv_cache_unified::find_slot(const llama_
         }
     }
 
-    uint32_t n_found  = 0;
     uint32_t n_tested = 0;
 
     const uint32_t n_test = cont ? n_tokens : 1;
 
     slot_info res;
 
-    res.idxs.resize(n_tokens);
+    auto & idxs = res.idxs;
+
+    idxs.reserve(n_tokens);
 
     while (true) {
         if (head_cur + n_test > cells.size()) {
@@ -677,20 +678,18 @@ llama_kv_cache_unified::slot_info llama_kv_cache_unified::find_slot(const llama_
             n_tested++;
 
             if (can_use) {
-                res.idxs[n_found] = idx;
-
-                n_found++;
+                idxs.push_back(idx);
             } else {
                 break;
             }
         }
 
-        if (n_found == n_tokens) {
+        if (idxs.size() == n_tokens) {
             break;
         }
 
         if (cont) {
-            n_found = 0;
+            idxs.clear();
         }
 
         if (n_tested >= cells.size()) {
@@ -700,7 +699,7 @@ llama_kv_cache_unified::slot_info llama_kv_cache_unified::find_slot(const llama_
     }
 
     // we didn't find a suitable slot - return empty result
-    if (n_found < n_tokens) {
+    if (idxs.size() < n_tokens) {
         res.clear();
     }
 
