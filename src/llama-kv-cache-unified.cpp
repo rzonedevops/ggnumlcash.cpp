@@ -717,7 +717,7 @@ void llama_kv_cache_unified::apply_ubatch(const slot_info & sinfo, const llama_u
     assert(ubatch.n_tokens == sinfo.idxs.size());
 
     for (uint32_t i = 0; i < ubatch.n_tokens; ++i) {
-        const auto idx = sinfo.idxs[i];
+        const auto idx = sinfo.idxs.at(i);
 
         if (!cells.is_empty(idx)) {
             assert(cells.seq_count(idx) == 1);
@@ -915,7 +915,7 @@ void llama_kv_cache_unified::set_input_k_idxs(ggml_tensor * dst, const llama_uba
     int64_t * data = (int64_t *) dst->data;
 
     for (int64_t i = 0; i < n_tokens; ++i) {
-        data[i] = sinfo.idxs[i];
+        data[i] = sinfo.idxs.at(i);
     }
 }
 
@@ -930,7 +930,7 @@ void llama_kv_cache_unified::set_input_v_idxs(ggml_tensor * dst, const llama_uba
     int64_t * data = (int64_t *) dst->data;
 
     for (int64_t i = 0; i < n_tokens; ++i) {
-        data[i] = sinfo.idxs[i];
+        data[i] = sinfo.idxs.at(i);
     }
 }
 

@@ -42,7 +42,7 @@ public:
         idx_vec_t idxs;
 
         uint32_t head() const {
-            return idxs[0];
+            return idxs.at(0);
         }
 
         bool empty() const {
