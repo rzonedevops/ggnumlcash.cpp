@@ -626,6 +626,8 @@ llama_kv_cache_unified::slot_info llama_kv_cache_unified::find_slot(const llama_
 
     uint32_t n_tested = 0;
 
+    // for continuous slots, we test that all tokens in the ubatch fit, starting from the current head
+    // for non-continuous slots, we test the tokens one by one
     const uint32_t n_test = cont ? n_tokens : 1;
 
     slot_info res;
@@ -853,7 +855,7 @@ ggml_tensor * llama_kv_cache_unified::cpy_v(ggml_context * ctx, ggml_tensor * v_
         v_cur = ggml_permute(ctx, ggml_reshape_3d(ctx, v_cur, v_cur->ne[0], 1, v_cur->ne[1]), 2, 0, 1, 3);
 
         // note: we can be more explicit here at the cost of extra cont
-        //       however, above we take advantage that a row of single element is always contiguous regardless of the row stride
+        //       however, above we take advantage that a row of single element is always continuous regardless of the row stride
         //v_cur = ggml_transpose(ctx, v_cur);
         //v_cur = ggml_cont_3d(ctx, v_cur, 1, v_cur->ne[0], v_cur->ne[1]);
 
@@ -1868,6 +1870,7 @@ llama_kv_cache_unified_context::llama_kv_cache_unified_context(
         llama_kv_cache_unified * kv) : status(LLAMA_MEMORY_STATUS_SUCCESS), kv(kv) {
     n_kv = kv->get_size();
 
+    // create a dummy slot info - the actual data is irrelevant. we just need to build the graph
     sinfos.resize(1);
     sinfos[0].idxs.resize(1);
     sinfos[0].idxs[0] = 0;
