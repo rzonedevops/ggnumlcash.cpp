@@ -55,6 +55,8 @@ static void ggml_print_tensor(uint8_t * data, ggml_type type, const int64_t * ne
                         v = ggml_fp16_to_fp32(*(ggml_fp16_t *) &data[i]);
                     } else if (type == GGML_TYPE_F32) {
                         v = *(float *) &data[i];
+                    } else if (type == GGML_TYPE_I64) {
+                        v = (float) *(int64_t *) &data[i];
                     } else if (type == GGML_TYPE_I32) {
                         v = (float) *(int32_t *) &data[i];
                     } else if (type == GGML_TYPE_I16) {
@@ -127,7 +129,10 @@ static bool ggml_debug(struct ggml_tensor * t, bool ask, void * user_data) {
 }
 
 static bool run(llama_context * ctx, const common_params & params) {
-    const bool add_bos = llama_add_bos_token(llama_get_model(ctx));
+    const llama_model * model = llama_get_model(ctx);
+    const llama_vocab * vocab = llama_model_get_vocab(model);
+
+    const bool add_bos = llama_vocab_get_add_bos(vocab);
 
     std::vector<llama_token> tokens = common_tokenize(ctx, params.prompt, add_bos);
 
@@ -162,8 +167,9 @@ int main(int argc, char ** argv) {
     // init
     common_init_result llama_init = common_init_from_params(params);
 
-    llama_model * model = llama_init.model;
-    llama_context * ctx = llama_init.context;
+    llama_model * model = llama_init.model.get();
+    llama_context * ctx = llama_init.context.get();
+
     if (model == nullptr || ctx == nullptr) {
         LOG_ERR("%s : failed to init\n", __func__);
         return 1;
@@ -183,9 +189,6 @@ int main(int argc, char ** argv) {
 
     LOG("\n");
     llama_perf_context_print(ctx);
-
-    llama_free(ctx);
-    llama_free_model(model);
 
     llama_backend_free();
 

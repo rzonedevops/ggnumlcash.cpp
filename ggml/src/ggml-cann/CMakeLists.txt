@@ -22,13 +22,15 @@ if(NOT SOC_TYPE)
     detect_ascend_soc_type(SOC_VERSION)
     set(SOC_TYPE "${SOC_VERSION}")
     message(STATUS "CANN: SOC_VERSION auto-detected is:${SOC_VERSION}")
-else()
-    string(TOLOWER ${SOC_TYPE} SOC_VERSION)
 endif()
 
-# Construct Soc specify compile option: ASCEND_#Soc_Major_SN. Such as ASCEND_910B, ASCEND310P.
+string(TOLOWER ${SOC_TYPE} SOC_VERSION) # SOC_VERSION need lower
+
+# Construct Soc specify compile option: ASCEND_#Soc_Major_SN. Such as ASCEND_910B, ASCEND_310P.
 string(REGEX MATCH "[0-9]+[a-zA-Z]" SOC_TYPE_MAJOR_SN "${SOC_VERSION}")
 set(SOC_TYPE_COMPILE_OPTION "ASCEND_${SOC_TYPE_MAJOR_SN}")
+string(TOUPPER ${SOC_TYPE_COMPILE_OPTION} SOC_TYPE_COMPILE_OPTION)
+message(STATUS "CANN: SOC_VERSION =  ${SOC_VERSION}")
 
 if (CANN_INSTALL_DIR)
     # Only Support Linux.
@@ -50,20 +52,18 @@ if (CANN_INSTALL_DIR)
         ${CANN_INSTALL_DIR}/acllib/include
     )
 
-    add_subdirectory(kernels)
     list(APPEND CANN_LIBRARIES
         ascendcl
         nnopbase
         opapi
         acl_op_compiler
-        ascendc_kernels
     )
 
     file(GLOB GGML_SOURCES_CANN "*.cpp")
 
-    add_library(ggml-cann ${GGML_SOURCES_CANN})
-    target_link_libraries(ggml-cann PRIVATE ggml-base ${CANN_LIBRARIES})
-    target_include_directories(ggml-cann PRIVATE . .. ${CANN_INCLUDE_DIRS})
+    ggml_add_backend_library(ggml-cann ${GGML_SOURCES_CANN})
+    target_link_libraries(ggml-cann PRIVATE ${CANN_LIBRARIES})
+    target_include_directories(ggml-cann PRIVATE ${CANN_INCLUDE_DIRS})
     target_link_directories(ggml-cann PRIVATE ${CANN_INSTALL_DIR}/lib64)
 
     target_compile_definitions(ggml-cann PRIVATE "-D${SOC_TYPE_COMPILE_OPTION}")
