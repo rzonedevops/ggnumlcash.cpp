@@ -10220,11 +10220,7 @@ struct llm_build_jamba : public llm_graph_context_mamba {
         // {n_embd, n_tokens}
         inpL = build_inp_embd(model.tok_embd);
 
-        const auto * mctx_hyb = static_cast<const llama_memory_hybrid_context *>(mctx);
-
-        auto * inp_rs = build_rs_inp(mctx_hyb->get_recr());
-
-        auto * inp_attn = build_attn_inp_kv_unified(mctx_hyb->get_attn());
+        auto * inp_hybrid = build_inp_mem_hybrid();
 
         ggml_tensor * inp_out_ids = build_inp_out_ids();
 
@@ -10235,7 +10231,7 @@ struct llm_build_jamba : public llm_graph_context_mamba {
             cb(cur, "attn_norm", il);
 
             if (n_head_kv == 0) {
-                cur = build_mamba_layer(inp_rs, gf, cur, model, ubatch, il);
+                cur = build_mamba_layer(inp_hybrid->get_recr(), gf, cur, model, ubatch, il);
             } else {
                 // Attention
 
@@ -10256,7 +10252,7 @@ struct llm_build_jamba : public llm_graph_context_mamba {
                 cb(Vcur, "Vcur", il);
 
                 // No RoPE :)
-                cur = build_attn(inp_attn, gf, model.layers[il].wo, NULL, Qcur, Kcur, Vcur, NULL, NULL, 1.0f/sqrtf(float(n_embd_head)), il);
+                cur = build_attn(inp_hybrid->get_attn(), gf, model.layers[il].wo, NULL, Qcur, Kcur, Vcur, NULL, NULL, 1.0f/sqrtf(float(n_embd_head)), il);
             }
 
             if (il == n_layer - 1 && inp_out_ids) {
