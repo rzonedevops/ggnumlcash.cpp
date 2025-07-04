@@ -13828,12 +13828,13 @@ struct llm_build_smollm3 : public llm_graph_context {
                         LLM_NORM_RMS, il);
                 cb(ffn_cur, "ffn_norm", il);
 
-                ffn_cur = build_ffn(ffn_cur,
-                        model.layers[il].ffn_up,   NULL, NULL,
-                        model.layers[il].ffn_gate, NULL, NULL,
-                        model.layers[il].ffn_down, NULL, NULL,
-                        NULL,
-                        LLM_FFN_SILU, LLM_FFN_PAR, il);
+            ffn_cur = build_ffn(
+                ffn_cur,
+                model.layers[il].ffn_up,   model.layers[il].ffn_up_b,   nullptr,
+                model.layers[il].ffn_gate, model.layers[il].ffn_gate_b, nullptr,
+                model.layers[il].ffn_down, model.layers[il].ffn_down_b, nullptr,
+                nullptr,
+                LLM_FFN_SILU, LLM_FFN_PAR, il);
                 cb(ffn_cur, "ffn_out", il);
 
                 cur = ggml_add(ctx0, cur, ffn_cur);
@@ -13848,13 +13849,14 @@ struct llm_build_smollm3 : public llm_graph_context {
                         LLM_NORM_RMS, il);
                 cb(cur, "ffn_norm", il);
 
-                cur = build_ffn(cur,
-                        model.layers[il].ffn_up,   NULL, NULL,
-                        model.layers[il].ffn_gate, NULL, NULL,
-                        model.layers[il].ffn_down, NULL, NULL,
-                        NULL,
-                        LLM_FFN_SILU, LLM_FFN_PAR, il);
-                cb(cur, "ffn_out", il);
+            cur = build_ffn(
+                cur,
+                model.layers[il].ffn_up,   model.layers[il].ffn_up_b,   nullptr,
+                model.layers[il].ffn_gate, model.layers[il].ffn_gate_b, nullptr,
+                model.layers[il].ffn_down, model.layers[il].ffn_down_b, nullptr,
+                nullptr,
+                LLM_FFN_SILU, LLM_FFN_PAR, il);
+                            cb(cur, "ffn_out", il);
 
                 cur = ggml_add(ctx0, cur, ffn_inp);
                 cb(cur, "ffn_out", il);
