@@ -6305,11 +6305,9 @@ class SmolLM3Model(LlamaModel):
     def set_gguf_parameters(self):
         super().set_gguf_parameters()
 
-        # if self.model.config.no_rope_layers is not None:
-        #     self.gguf_writer.add_array("smollm3.no_rope_layers", self.model.config.no_rope_layers, gguf.GGUFValueType.INT32)
-        no_rope_layers = self.hparams.get("no_rope_layers")
-        if no_rope_layers is not None:
-            self.gguf_writer.add_array("smollm3.no_rope_layers", no_rope_layers)
+        no_rope_layer_interval = self.hparams.get("no_rope_layer_interval")
+        if no_rope_layer_interval is not None:
+            self.gguf_writer.add_uint32("no_rope_layer_interval", no_rope_layer_interval)
 
 ###### CONVERSION LOGIC ######
 

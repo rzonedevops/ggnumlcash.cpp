@@ -443,6 +443,10 @@ void llama_model::load_hparams(llama_model_loader & ml) {
         return;
     }
 
+    if (arch == LLM_ARCH_SMOLLM3) {
+        ml.get_key("no_rope_layer_interval", hparams.no_rope_layer_interval);
+    }
+
     ml.get_key(LLM_KV_CONTEXT_LENGTH,    hparams.n_ctx_train);
     ml.get_key(LLM_KV_EMBEDDING_LENGTH,  hparams.n_embd);
     ml.get_key(LLM_KV_BLOCK_COUNT,       hparams.n_layer);
@@ -13740,17 +13744,7 @@ struct llm_build_smollm3 : public llm_graph_context {
         GGML_ASSERT(n_embd_head == hparams.n_embd_head_k);
         GGML_ASSERT(n_embd_head == hparams.n_rot);
 
-        // collect layers for which RoPE is disabled (metadata key: "smollm3.no_rope_layers")
-        std::vector<int32_t> no_rope_layers;
-        if (arch == LLM_ARCH_SMOLLM3) {
-            const int kid = gguf_find_key(model.meta, "smollm3.no_rope_layers");
-            if (kid != -1) {
-                const uint32_t n = gguf_get_arr_n(model.meta, kid);
-                no_rope_layers.resize(n);
-                const int nb = gguf_get_arr_data(model.meta, kid, no_rope_layers.data(), n * sizeof(int32_t));
-                GGML_ASSERT(nb == int(n * sizeof(int32_t)));
-            }
-        }
+        const uint32_t interval = hparams.no_rope_layer_interval;
 
         // token embeddings
         ggml_tensor * inpL = build_inp_embd(model.tok_embd);
@@ -13793,7 +13787,7 @@ struct llm_build_smollm3 : public llm_graph_context {
                 Kcur = ggml_reshape_3d(ctx0, Kcur, n_embd_head, n_head_kv, n_tokens);
                 Vcur = ggml_reshape_3d(ctx0, Vcur, n_embd_head, n_head_kv, n_tokens);
 
-                if (std::find(no_rope_layers.begin(), no_rope_layers.end(), il) == no_rope_layers.end()) {
+                if (interval == 0 || il % interval != 0) {
                     ggml_tensor * rope_factors = model.get_rope_factors(cparams, il);
                     Qcur = ggml_rope_ext(ctx0, Qcur, inp_pos, rope_factors,
                             n_rot, rope_type, n_ctx_orig, freq_base, freq_scale,
