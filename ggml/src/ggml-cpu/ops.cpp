@@ -4671,10 +4671,7 @@ static void ggml_compute_forward_scale_f32(
             // src0 is same shape as dst => same indices
             memcpy((char *)dst->data + i1*nb1, (char *)src0->data + i1*nb01, nc * sizeof(float));
         }
-        ggml_vec_scale_f32(nc, (float *) ((char *) dst->data + i1*nb1), s);
-        if (b != 0.0f) {
-            ggml_vec_acc1_f32(nc, (float *) ((char *) dst->data + i1*nb1), b);
-        }
+        ggml_vec_mad1_f32(nc, (float *) ((char *) dst->data + i1*nb1), s, b);
     }
 }
 
