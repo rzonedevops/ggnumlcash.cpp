@@ -3305,12 +3305,6 @@ bool llama_model::load_tensors(llama_model_loader & ml) {
 
                             // out_proj
                             layer.ssm_out = create_tensor(tn(LLM_TENSOR_SSM_OUT, "weight", i), {d_inner, n_embd}, 0);
-
-                            layer.wq = nullptr;
-                            layer.wk = nullptr;
-                            layer.wv = nullptr;
-                            layer.wo = nullptr;
-
                         } else {
                             // Attention layers
 
@@ -3318,19 +3312,6 @@ bool llama_model::load_tensors(llama_model_loader & ml) {
                             layer.wk = create_tensor(tn(LLM_TENSOR_ATTN_K,   "weight", i), {n_embd, n_embd_gqa}, 0);
                             layer.wv = create_tensor(tn(LLM_TENSOR_ATTN_V,   "weight", i), {n_embd, n_embd_gqa}, 0);
                             layer.wo = create_tensor(tn(LLM_TENSOR_ATTN_OUT, "weight", i), {n_embd, n_embd}, 0);
-
-                            layer.ssm_in       = nullptr;
-                            layer.ssm_conv1d   = nullptr;
-                            layer.ssm_conv1d_b = nullptr;
-                            layer.ssm_x        = nullptr;
-                            layer.ssm_dt_norm  = nullptr;
-                            layer.ssm_dt       = nullptr;
-                            layer.ssm_dt_b     = nullptr;
-                            layer.ssm_b_norm   = nullptr;
-                            layer.ssm_c_norm   = nullptr;
-                            layer.ssm_a        = nullptr;
-                            layer.ssm_d        = nullptr;
-                            layer.ssm_out      = nullptr;
                         }
 
                         layer.ffn_norm = create_tensor(tn(LLM_TENSOR_FFN_NORM, "weight", i), {n_embd}, 0);
@@ -3342,19 +3323,11 @@ bool llama_model::load_tensors(llama_model_loader & ml) {
                             layer.ffn_gate_exps = create_tensor(tn(LLM_TENSOR_FFN_GATE_EXPS, "weight", i), {n_embd, n_ff, n_expert}, 0);
                             layer.ffn_down_exps = create_tensor(tn(LLM_TENSOR_FFN_DOWN_EXPS, "weight", i), {n_ff, n_embd, n_expert}, 0);
                             layer.ffn_up_exps   = create_tensor(tn(LLM_TENSOR_FFN_UP_EXPS,   "weight", i), {n_embd, n_ff, n_expert}, 0);
-
-                            layer.ffn_gate = nullptr;
-                            layer.ffn_down = nullptr;
-                            layer.ffn_up   = nullptr;
                         } else {
                             // FFN (no MoE)
                             layer.ffn_gate = create_tensor(tn(LLM_TENSOR_FFN_GATE, "weight", i), {n_embd, n_ff}, 0);
                             layer.ffn_down = create_tensor(tn(LLM_TENSOR_FFN_DOWN, "weight", i), {n_ff, n_embd}, 0);
                             layer.ffn_up   = create_tensor(tn(LLM_TENSOR_FFN_UP,   "weight", i), {n_embd, n_ff}, 0);
-
-                            layer.ffn_gate_exps = nullptr;
-                            layer.ffn_down_exps = nullptr;
-                            layer.ffn_up_exps   = nullptr;
                         }
                     }
                 } break;
