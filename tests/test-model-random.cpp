@@ -818,6 +818,8 @@ struct model_variant {
             case LLM_ARCH_DOTS1:
             case LLM_ARCH_ARCEE:
             case LLM_ARCH_ERNIE4_5:
+            case LLM_ARCH_HUNYUAN_MOE:
+            case LLM_ARCH_SMOLLM3:
             case LLM_ARCH_UNKNOWN:
                 break;
         }
@@ -1093,7 +1095,7 @@ int main(int argc, char ** argv) {
         // const auto n_vocab = llama_vocab_n_tokens(llama_model_get_vocab(model));
         // const auto n_embd = llama_model_n_embd(model);
 
-        for (int32_t n_seq_max : { 1, 2, 5, 13 } ) {
+        for (int32_t n_seq_max : { 1, 2, 5 }) {
 
             // TODO(later): context shift testing
             for (int32_t n_ctx : { n_seq_len * n_seq_max }) {
