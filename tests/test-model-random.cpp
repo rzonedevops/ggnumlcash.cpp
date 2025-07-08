@@ -340,7 +340,7 @@ struct model_variant {
         return status;
     }
 
-    static void insert_from_arch(std::vector<model_variant> & variants, llm_arch arch) {
+    static void insert_from_arch(std::vector<model_variant> & variants, llm_arch arch, uint32_t n_ctx) {
         uint32_t n_vocab = 256;
         uint32_t n_embd = 32;
         uint32_t n_ff = 3 * n_embd;
@@ -391,7 +391,7 @@ struct model_variant {
                     const uint32_t n_embd_v_gqa = n_embd_k_gqa;
 
                     cur.add_kv(LLM_KV_BLOCK_COUNT, n_layer);
-                    cur.add_kv(LLM_KV_CONTEXT_LENGTH, (uint32_t) 4096);
+                    cur.add_kv(LLM_KV_CONTEXT_LENGTH, n_ctx);
                     cur.add_kv(LLM_KV_EMBEDDING_LENGTH, n_embd);
                     cur.add_kv(LLM_KV_FEED_FORWARD_LENGTH, n_ff);
                     cur.add_kv(LLM_KV_ATTENTION_HEAD_COUNT, n_head);
@@ -439,7 +439,7 @@ struct model_variant {
                     const uint32_t n_expert = 4;
 
                     cur.add_kv(LLM_KV_BLOCK_COUNT, n_layer);
-                    cur.add_kv(LLM_KV_CONTEXT_LENGTH, (uint32_t) 4096);
+                    cur.add_kv(LLM_KV_CONTEXT_LENGTH, n_ctx);
                     cur.add_kv(LLM_KV_EMBEDDING_LENGTH, n_embd);
                     cur.add_kv(LLM_KV_FEED_FORWARD_LENGTH, n_ff);
                     cur.add_kv(LLM_KV_ATTENTION_HEAD_COUNT, n_head);
@@ -450,8 +450,7 @@ struct model_variant {
                     cur.add_kv(LLM_KV_ROPE_DIMENSION_COUNT, n_embd / n_head);
                     cur.add_kv(LLM_KV_INTERLEAVE_MOE_LAYER_STEP, n_moe_layer_step);
                     cur.add_kv(LLM_KV_EXPERT_FEED_FORWARD_LENGTH, n_ff_exp);
-                    // FIXME: this isn't used because the default is 8192
-                    cur.add_kv(LLM_KV_ATTENTION_SLIDING_WINDOW, (uint32_t) 389); // prime number
+                    cur.add_kv(LLM_KV_ATTENTION_SLIDING_WINDOW, n_ctx / 2); // TODO: use a prime number
 
                     add_tokenizer(cur, n_vocab);
 
@@ -538,7 +537,7 @@ struct model_variant {
                     const uint32_t n_embd_k_gqa = n_embd_head_k * n_head_kv;
                     const uint32_t n_embd_v_gqa = n_embd_k_gqa;
 
-                    cur.add_kv(LLM_KV_CONTEXT_LENGTH, (uint32_t) 4096);
+                    cur.add_kv(LLM_KV_CONTEXT_LENGTH, n_ctx);
                     cur.add_kv(LLM_KV_EMBEDDING_LENGTH, n_embd);
                     cur.add_kv(LLM_KV_BLOCK_COUNT, n_layer);
                     cur.add_kv(LLM_KV_FEED_FORWARD_LENGTH, n_ff);
@@ -547,7 +546,7 @@ struct model_variant {
                     cur.add_kv(LLM_KV_ATTENTION_LAYERNORM_RMS_EPS, 1e-5f);
                     cur.add_kv(LLM_KV_ATTN_LOGIT_SOFTCAPPING, 50.0f);
                     cur.add_kv(LLM_KV_FINAL_LOGIT_SOFTCAPPING, 30.0f);
-                    cur.add_kv(LLM_KV_ATTENTION_SLIDING_WINDOW, (uint32_t) 389); // prime number
+                    cur.add_kv(LLM_KV_ATTENTION_SLIDING_WINDOW, n_ctx / 2); // TODO: use a prime number
 
                     add_tokenizer(cur, n_vocab);
 
@@ -1063,8 +1062,8 @@ int main(int argc, char ** argv) {
     std::mt19937 rng(42);
 
     // TODO: multiple sequences per token
-    const int32_t n_batch = 3 * 512;
-    const int32_t n_seq_len = 643; // prime number
+    const int32_t n_batch = 509; // prime number
+    const int32_t n_seq_len = 127; // prime number
 
     llama_batch batch = llama_batch_init(n_batch, 0, 1);
     // TODO: batch with embeddings
@@ -1073,7 +1072,7 @@ int main(int argc, char ** argv) {
 
     for (int i = 0; i < LLM_ARCH_UNKNOWN; ++i) {
         llm_arch arch = (llm_arch) i;
-        model_variant::insert_from_arch(model_variants, arch);
+        model_variant::insert_from_arch(model_variants, arch, n_seq_len);
     }
 
     // TODO: concurrent tests?
@@ -1094,7 +1093,7 @@ int main(int argc, char ** argv) {
         // const auto n_vocab = llama_vocab_n_tokens(llama_model_get_vocab(model));
         // const auto n_embd = llama_model_n_embd(model);
 
-        for (int32_t n_seq_max : { 1, 2, 5 } ) {
+        for (int32_t n_seq_max : { 1, 2, 5, 13 } ) {
 
             // TODO(later): context shift testing
             for (int32_t n_ctx : { n_seq_len * n_seq_max }) {
