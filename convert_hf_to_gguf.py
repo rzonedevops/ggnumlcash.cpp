@@ -6691,13 +6691,6 @@ class HunYuanMoEModel(TextModel):
 class SmolLM3Model(LlamaModel):
     model_arch = gguf.MODEL_ARCH.SMOLLM3
 
-    def set_gguf_parameters(self):
-        super().set_gguf_parameters()
-
-        no_rope_layer_interval = self.hparams.get("no_rope_layer_interval")
-        if no_rope_layer_interval is not None:
-            self.gguf_writer.add_uint32("no_rope_layer_interval", no_rope_layer_interval)
-
 ###### CONVERSION LOGIC ######
 
 
