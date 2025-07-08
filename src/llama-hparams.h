@@ -201,9 +201,6 @@ struct llama_hparams {
 
     uint32_t n_pos_per_embd() const;
 
-    // for NoPE interval
-    uint32_t no_rope_layer_interval = 0;
-
     bool is_swa(uint32_t il) const;
 };
 
