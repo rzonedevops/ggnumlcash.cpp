@@ -404,13 +404,13 @@ inline static void ggml_vec_mad1_f32(const int n, float * y, const float s, cons
 
         // leftovers
         for (int i = np; i < n; ++i) {
-            y[i]  = y[i]*s + b;
+            y[i] = y[i]*s + b;
         }
     #endif
 #else
     // scalar
     for (int i = 0; i < n; ++i) {
-        y[i] *= y[i]*s + b;
+        y[i] = y[i]*s + b;
     }
 #endif
 }
