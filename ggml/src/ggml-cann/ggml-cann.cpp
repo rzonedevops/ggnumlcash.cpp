@@ -2210,7 +2210,8 @@ static bool ggml_backend_cann_supports_op(ggml_backend_dev_t dev,
         case GGML_OP_COUNT_EQUAL:
             return true;
         case GGML_OP_SCALE:
-            float bias = ((const float *)(op->op_params))[1];
+            float bias;
+            memcpy(&bias, (float*)op->op_params + 1, sizeof(float));
             return bias == 0.0f; // TODO: support bias != 0.0f
         case GGML_OP_SOFT_MAX:
             // TODO: support broadcast
