@@ -353,8 +353,7 @@ inline static void ggml_vec_mad_f32_unroll(const int n, const int xs, const int 
 
 inline static void ggml_vec_mad1_f32(const int n, float * y, const float s, const float b) {
 #if defined(GGML_USE_ACCELERATE)
-    vDSP_vsmul(y, 1, &s, y, 1, n);
-    vDSP_vsadd(y, 1, &b, y, 1, n);
+    vDSP_vsmsa(y, 1, &s, &b, y, 1, n);
 #elif defined(GGML_SIMD)
     #if defined(__ARM_FEATURE_SVE)
         const int sve_register_length = ggml_cpu_get_sve_cnt() * 8;
