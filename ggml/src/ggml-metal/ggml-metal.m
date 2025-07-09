@@ -2255,8 +2255,10 @@ static bool ggml_metal_encode_node(
             {
                 GGML_ASSERT(ggml_is_contiguous(src0));
 
-                float scale = ((const float *)(dst->op_params))[0];
-                float bias  = ((const float *)(dst->op_params))[1];
+                float scale;
+                float bias;
+                memcpy(&scale, ((const int32_t *) dst->op_params) + 0, sizeof(float));
+                memcpy(&bias,  ((const int32_t *) dst->op_params) + 1, sizeof(float));
 
                 int64_t n = ggml_nelements(dst);
 

@@ -2318,8 +2318,10 @@ inline void ggml_sycl_op_scale(ggml_backend_sycl_context & ctx, ggml_tensor * ds
     const float * src0_dd = static_cast<const float *>(dst->src[0]->data);
     float *       dst_dd  = static_cast<float *>(dst->data);
 
-    float scale = ((const float *)(dst->op_params))[0];
-    float bias  = ((const float *)(dst->op_params))[1];
+    float scale;
+    float bias;
+    memcpy(&scale, dst->op_params, sizeof(float));
+    memcpy(&bias,  (float *) dst->op_params + 1, sizeof(float));
 
     scale_f32_sycl(src0_dd, dst_dd, scale, bias, ggml_nelements(dst->src[0]), main_stream);
     /*

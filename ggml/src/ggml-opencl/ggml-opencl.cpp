@@ -5586,8 +5586,10 @@ static void ggml_cl_scale(ggml_backend_t backend, const ggml_tensor * src0, cons
 
     ggml_backend_opencl_context *backend_ctx = (ggml_backend_opencl_context *)backend->context;
 
-    float scale = ((const float *)(dst->op_params))[0];
-    float bias  = ((const float *)(dst->op_params))[1];
+    float scale;
+    float bias;
+    memcpy(&scale, ((int32_t *) dst->op_params) + 0, sizeof(float));
+    memcpy(&bias,  ((int32_t *) dst->op_params) + 1, sizeof(float));
 
     ggml_tensor_extra_cl * extra0 = (ggml_tensor_extra_cl *)src0->extra;
     ggml_tensor_extra_cl * extrad = (ggml_tensor_extra_cl *)dst->extra;
