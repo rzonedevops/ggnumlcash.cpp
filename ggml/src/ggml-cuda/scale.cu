@@ -26,8 +26,8 @@ void ggml_cuda_op_scale(ggml_backend_cuda_context & ctx, ggml_tensor * dst) {
 
     float scale;
     float bias;
-    memcpy(&scale, dst->op_params, sizeof(float));
-    memcpy(&bias, (float *) dst->op_params + 1, sizeof(float));
+    memcpy(&scale, (float *) dst->op_params + 0, sizeof(float));
+    memcpy(&bias,  (float *) dst->op_params + 1, sizeof(float));
 
     scale_f32_cuda(src0_d, dst_d, scale, bias, ggml_nelements(src0), stream);
 }
