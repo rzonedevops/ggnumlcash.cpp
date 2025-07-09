@@ -4670,17 +4670,17 @@ static void ggml_compute_forward_scale_f32(
         for (int i1 = ir0; i1 < ir1; i1++) {
             if (dst->data != src0->data) {
                 // src0 is same shape as dst => same indices
+                // TODO: add x parameter to ggml_vec_scale_f32 and remove this memcpy
                 memcpy((char *)dst->data + i1*nb1, (char *)src0->data + i1*nb01, nc * sizeof(float));
             }
             ggml_vec_scale_f32(nc, (float *) ((char *) dst->data + i1*nb1), s);
         }
     } else {
         for (int i1 = ir0; i1 < ir1; i1++) {
-            if (dst->data != src0->data) {
-                // src0 is same shape as dst => same indices
-                memcpy((char *)dst->data + i1*nb1, (char *)src0->data + i1*nb01, nc * sizeof(float));
-            }
-            ggml_vec_mad1_f32(nc, (float *) ((char *) dst->data + i1*nb1), s, b);
+            ggml_vec_mad1_f32(nc,
+                (float *) ((char *) dst->data  + i1*nb1),
+                (float *) ((char *) src0->data + i1*nb1),
+                s, b);
         }
     }
 }
