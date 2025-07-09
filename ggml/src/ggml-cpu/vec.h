@@ -355,57 +355,27 @@ inline static void ggml_vec_mad1_f32(const int n, float * y, const float s, cons
 #if defined(GGML_USE_ACCELERATE)
     vDSP_vsmsa(y, 1, &s, &b, y, 1, n);
 #elif defined(GGML_SIMD)
-    #if defined(__ARM_FEATURE_SVE)
-        const int sve_register_length = ggml_cpu_get_sve_cnt() * 8;
-        const int ggml_f32_epr = sve_register_length / 32;//8;//svcntw(); // SVE128:4, SVE256:8, SVE512:16
-        const int ggml_f32_step = 2 * ggml_f32_epr;
+    // TODO: #if defined(__ARM_FEATURE_SVE)
+    const int np = (n & ~(GGML_F32_STEP - 1));
 
-        GGML_F32_VEC vs = GGML_F32_VEC_SET1(s);
-        GGML_F32_VEC vb = GGML_F32_VEC_SET1(b);
+    GGML_F32_VEC vs = GGML_F32_VEC_SET1(s);
+    GGML_F32_VEC vb = GGML_F32_VEC_SET1(b);
 
-        const int np = (n & ~(ggml_f32_step - 1));
-        svfloat32_t ay1;
-        svfloat32_t ay2;
-        for (int i = 0; i < np; i += ggml_f32_step) {
-            ay1 = GGML_F32_VEC_LOAD(y + i);
-            ay1 = GGML_F32_VEC_FMA(ay1, vs, vb);
-            GGML_F32_VEC_STORE(y + i, ay1);
+    GGML_F32_VEC ay[GGML_F32_ARR];
 
-            ay2 = GGML_F32_VEC_LOAD(y + i + 1*ggml_f32_epr);
-            ay2 = GGML_F32_VEC_FMA(ay2, vs, vb);
-            GGML_F32_VEC_STORE(y + i + 1*ggml_f32_epr, ay2);
+    for (int i = 0; i < np; i += GGML_F32_STEP) {
+        for (int j = 0; j < GGML_F32_ARR; j++) {
+            ay[j] = GGML_F32_VEC_LOAD(y + i + j*GGML_F32_EPR);
+            ay[j] = GGML_F32_VEC_FMA(ay[j], vs, vb);
+
+            GGML_F32_VEC_STORE(y + i + j*GGML_F32_EPR, ay[j]);
         }
-        // leftovers
-        // maximum number of leftover elements will be less that ggml_f32_epr. Apply predicated svmad on available elements only
-        if (np < n) {
-            svbool_t pg = svwhilelt_b32(np, n);
-            ay1 = svld1_f32(pg, y + np);
-            ay1 = svmul_f32_m(pg, ay1, vs);
-            ay1 = svadd_f32_m(pg, ay1, vb);
-            svst1_f32(pg, y + np, ay1);
-        }
-    #else
-        const int np = (n & ~(GGML_F32_STEP - 1));
+    }
 
-        GGML_F32_VEC vs = GGML_F32_VEC_SET1(s);
-        GGML_F32_VEC vb = GGML_F32_VEC_SET1(b);
-
-        GGML_F32_VEC ay[GGML_F32_ARR];
-
-        for (int i = 0; i < np; i += GGML_F32_STEP) {
-            for (int j = 0; j < GGML_F32_ARR; j++) {
-                ay[j] = GGML_F32_VEC_LOAD(y + i + j*GGML_F32_EPR);
-                ay[j] = GGML_F32_VEC_FMA(ay[j], vs, vb);
-
-                GGML_F32_VEC_STORE(y + i + j*GGML_F32_EPR, ay[j]);
-            }
-        }
-
-        // leftovers
-        for (int i = np; i < n; ++i) {
-            y[i] = y[i]*s + b;
-        }
-    #endif
+    // leftovers
+    for (int i = np; i < n; ++i) {
+        y[i] = y[i]*s + b;
+    }
 #else
     // scalar
     for (int i = 0; i < n; ++i) {
