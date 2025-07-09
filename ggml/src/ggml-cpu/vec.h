@@ -355,27 +355,33 @@ inline static void ggml_vec_mad1_f32(const int n, float * y, const float s, cons
 #if defined(GGML_USE_ACCELERATE)
     vDSP_vsmsa(y, 1, &s, &b, y, 1, n);
 #elif defined(GGML_SIMD)
-    // TODO: #if defined(__ARM_FEATURE_SVE)
-    const int np = (n & ~(GGML_F32_STEP - 1));
-
-    GGML_F32_VEC vs = GGML_F32_VEC_SET1(s);
-    GGML_F32_VEC vb = GGML_F32_VEC_SET1(b);
-
-    GGML_F32_VEC ay[GGML_F32_ARR];
-
-    for (int i = 0; i < np; i += GGML_F32_STEP) {
-        for (int j = 0; j < GGML_F32_ARR; j++) {
-            ay[j] = GGML_F32_VEC_LOAD(y + i + j*GGML_F32_EPR);
-            ay[j] = GGML_F32_VEC_FMA(ay[j], vs, vb);
-
-            GGML_F32_VEC_STORE(y + i + j*GGML_F32_EPR, ay[j]);
+    #if defined(__ARM_FEATURE_SVE)
+        // scalar ; TODO: Write SVE code
+        for (int i = 0; i < n; ++i) {
+            y[i] = y[i]*s + b;
         }
-    }
+    #else
+        const int np = (n & ~(GGML_F32_STEP - 1));
 
-    // leftovers
-    for (int i = np; i < n; ++i) {
-        y[i] = y[i]*s + b;
-    }
+        GGML_F32_VEC vs = GGML_F32_VEC_SET1(s);
+        GGML_F32_VEC vb = GGML_F32_VEC_SET1(b);
+
+        GGML_F32_VEC ay[GGML_F32_ARR];
+
+        for (int i = 0; i < np; i += GGML_F32_STEP) {
+            for (int j = 0; j < GGML_F32_ARR; j++) {
+                ay[j] = GGML_F32_VEC_LOAD(y + i + j*GGML_F32_EPR);
+                ay[j] = GGML_F32_VEC_FMA(ay[j], vs, vb);
+
+                GGML_F32_VEC_STORE(y + i + j*GGML_F32_EPR, ay[j]);
+            }
+        }
+
+        // leftovers
+        for (int i = np; i < n; ++i) {
+            y[i] = y[i]*s + b;
+        }
+    #endif
 #else
     // scalar
     for (int i = 0; i < n; ++i) {
