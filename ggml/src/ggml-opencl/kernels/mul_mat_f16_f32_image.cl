@@ -47,7 +47,7 @@ __kernel void mul_mat_f16_f32_image(
     }
 
     __global float* C = (__global float*)((__global char*)C_buf + c_offset);
-    
+
     if (n_base + 3 < N) {
         C[(n_base + 0) * M + m_idx] = c_vals.x;
         C[(n_base + 1) * M + m_idx] = c_vals.y;
