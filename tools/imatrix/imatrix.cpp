@@ -967,9 +967,23 @@ int main(int argc, char ** argv) {
         }
     }
 
-    if (params.in_files.size() > 1) {
-        LOG_INF("%s : saving combined imatrix to '%s'\n", __func__, params.out_file.c_str());
+    if (params.prompt.empty()) {
+        LOG_INF("No prompt provided; combining precomputed matrices only.\n");
+
+        if (params.in_files.empty()) {
+            LOG_ERR("Error: No prompt provided and no precomputed matrices (--in-file) to combine.\n");
+            return 1;
+        }
+
+        if (params.in_files.size() == 1) {
+            LOG_INF("%s : saving imatrix to '%s'\n", __func__, params.out_file.c_str());
+        } else if (params.in_files.size() > 1) {
+            LOG_INF("%s : saving combined imatrix to '%s'\n", __func__, params.out_file.c_str());
+        }
+
         g_collector.save_imatrix();
+
+        return 0;
     }
 
     llama_backend_init();
@@ -1004,18 +1018,9 @@ int main(int argc, char ** argv) {
         LOG_INF("%s\n", common_params_get_system_info(params).c_str());
     }
 
-    if (params.prompt.empty()) {
-        if (params.in_files.empty()) {
-            LOG_ERR("Error: No prompt provided and no precomputed matrices (--in-file) to combine.\n");
-            return 1;
-        }
-        LOG_INF("No prompt provided; combining precomputed matrices only.\n");
-    } else {
-        if (!compute_imatrix(ctx, params, n_ctx)) {
-            return 1;
-        }
+    if (!compute_imatrix(ctx, params, n_ctx)) {
+        return 1;
     }
-
 
     g_collector.save_imatrix();
 
