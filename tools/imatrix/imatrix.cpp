@@ -349,8 +349,9 @@ void IMatrixCollector::save_imatrix_legacy(int32_t ncall) const {
 void IMatrixCollector::save_imatrix(int32_t n_chunk) const {
     auto fname = m_params.out_file;
 
-    // TODO: use the new format by default also for .imatrix
+    // TODO: use the new format in more cases
     if (!string_ends_with(fname, ".gguf")) {
+        LOG_WRN("\n%s: saving to legacy imatrix format because output suffix is not .gguf\n", __func__);
         this->save_imatrix_legacy(n_chunk);
         return;
     }
