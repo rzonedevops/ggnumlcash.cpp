@@ -254,7 +254,7 @@ void IMatrixCollector::save_imatrix_legacy(int32_t ncall) const {
         fname += std::to_string(ncall);
     }
 
-    // avoid writing imatrix entries that do not have full data
+    // warn when writing imatrix entries that do not have full data
     // this can happen with MoE models where some of the experts end up not being exercised by the provided training data
 
     int n_entries = 0;
@@ -286,8 +286,7 @@ void IMatrixCollector::save_imatrix_legacy(int32_t ncall) const {
         }
 
         if (n_zeros > 0) {
-            LOG_WRN("%s: entry '%40s' has partial data (%.2f%%) - skipping\n", __func__, kv.first.c_str(), 100.0f * (n_all - n_zeros) / n_all);
-            continue;
+            LOG_WRN("%s: entry '%40s' has partial data (%.2f%%)\n", __func__, kv.first.c_str(), 100.0f * (n_all - n_zeros) / n_all);
         }
 
         n_entries++;
@@ -310,7 +309,8 @@ void IMatrixCollector::save_imatrix_legacy(int32_t ncall) const {
         const int32_t len = name.size();
         out.write((const char *) &len, sizeof(len));
         out.write(name.c_str(), len);
-        const int32_t ncall = *std::max_element(stat.counts.begin(), stat.counts.end()) / chunk_size;
+        // ceiling division to avoid accidental zeros
+        const int32_t ncall = (*std::max_element(stat.counts.begin(), stat.counts.end()) + (chunk_size - 1)) / chunk_size;
         out.write((const char *) &ncall, sizeof(ncall));
         const int32_t nval = stat.values.size();
         const int32_t nmat = stat.counts.size();
@@ -318,8 +318,14 @@ void IMatrixCollector::save_imatrix_legacy(int32_t ncall) const {
         if (nval > 0 && nmat > 0) {
             std::vector<float> tmp(nval);
             for (int32_t i = 0; i < nval; i++) {
-                const float counts = static_cast<float>(stat.counts[i / (nval / nmat)]);
-                tmp[i] = (stat.values[i] / counts) * static_cast<float>(ncall);
+                float count = static_cast<float>(stat.counts[i / (nval / nmat)]);
+                float value = stat.values[i];
+                if (count == 0.0f) {
+                    // store 1 for partial data
+                    value = 1.0f;
+                    count = 1.0f;
+                }
+                tmp[i] = (value / count) * static_cast<float>(ncall);
             }
             out.write((const char *) tmp.data(), nval * sizeof(float));
         }
@@ -367,7 +373,26 @@ void IMatrixCollector::save_imatrix(int32_t n_chunk) const {
     std::vector<std::string> to_store;
     size_t data_size = 0;
 
+    bool is_first = true; // for printing
     for (const auto & kv : m_stats) {
+        const int n_all = kv.second.counts.size();
+
+        int n_zeros = 0;
+        for (const auto c : kv.second.counts) {
+            if (c == 0) {
+                n_zeros++;
+            }
+        }
+
+        if (n_zeros != 0 && is_first) {
+            LOG_INF("\n");
+            is_first = false;
+        }
+
+        if (n_zeros > 0) {
+            LOG_WRN("%s: entry '%40s' has partial data (%.2f%%)\n", __func__, kv.first.c_str(), 100.0f * (n_all - n_zeros) / n_all);
+        }
+
         to_store.push_back(kv.first);
         data_size += GGML_PAD(ggml_tensor_overhead() + sizeof(float) * kv.second.values.size(), GGML_MEM_ALIGN);
         data_size += GGML_PAD(ggml_tensor_overhead() + sizeof(float) * kv.second.counts.size(), GGML_MEM_ALIGN);
