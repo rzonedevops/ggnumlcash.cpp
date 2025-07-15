@@ -5062,7 +5062,6 @@ static void ggml_cl_mul_mat_f16_f32_tiled(ggml_backend_t backend, const ggml_ten
 static void ggml_cl_mul_mat_f16_f32_image(ggml_backend_t backend, const ggml_tensor * src0, const ggml_tensor * src1, ggml_tensor * dst) {
     ggml_backend_opencl_context *backend_ctx = (ggml_backend_opencl_context *)backend->context;
     cl_context context = backend_ctx->context;
-    cl_command_queue queue = backend_ctx->queue;
     cl_int err = 0;
 
     const int M = src0->ne[1];
@@ -5079,26 +5078,23 @@ static void ggml_cl_mul_mat_f16_f32_image(ggml_backend_t backend, const ggml_ten
     cl_ulong offset1 = extra1->offset + src1->view_offs;
     cl_ulong offsetd = extrad->offset + dst->view_offs;
 
-    cl_mem a_image = NULL, b_image = NULL;
-    cl_event pack_events[2];
-    cl_event matmul_event;
+    cl_image_format format = {CL_RGBA, CL_HALF_FLOAT};
+    cl_mem a_image, b_image;
 
     // Create image for A
-    cl_image_format format_A = {CL_RGBA, CL_HALF_FLOAT};
     cl_image_desc desc_A = {};
     desc_A.image_type = CL_MEM_OBJECT_IMAGE2D;
     desc_A.image_width = K_4;
     desc_A.image_height = M;
-    a_image = clCreateImage(context, CL_MEM_READ_WRITE, &format_A, &desc_A, NULL, &err);
+    a_image = clCreateImage(context, CL_MEM_READ_WRITE, &format, &desc_A, NULL, &err);
     CL_CHECK(err);
 
     // Create image for B
-    cl_image_format format_B = {CL_RGBA, CL_HALF_FLOAT};
     cl_image_desc desc_B = {};
     desc_B.image_type = CL_MEM_OBJECT_IMAGE2D;
     desc_B.image_width = N_4;
     desc_B.image_height = K;
-    b_image = clCreateImage(context, CL_MEM_READ_WRITE, &format_B, &desc_B, NULL, &err);
+    b_image = clCreateImage(context, CL_MEM_READ_WRITE, &format, &desc_B, NULL, &err);
     CL_CHECK(err);
 
     // Launch packing kernel for A
@@ -5108,8 +5104,8 @@ static void ggml_cl_mul_mat_f16_f32_image(ggml_backend_t backend, const ggml_ten
     CL_CHECK(clSetKernelArg(pack_a_kernel, 2, sizeof(cl_mem),   &a_image));
     CL_CHECK(clSetKernelArg(pack_a_kernel, 3, sizeof(int),      &M));
     CL_CHECK(clSetKernelArg(pack_a_kernel, 4, sizeof(int),      &K));
-    const size_t pack_a_gws[2] = { (size_t)K_4, (size_t)M };
-    CL_CHECK(clEnqueueNDRangeKernel(queue, pack_a_kernel, 2, NULL, pack_a_gws, NULL, 0, NULL, &pack_events[0]));
+    size_t pack_a_gws[2] = { (size_t)K_4, (size_t)M };
+    backend_ctx->enqueue_ndrange_kernel(pack_a_kernel, 2, pack_a_gws, NULL, src0);
 
     // Launch packing kernel for B
     cl_kernel pack_b_kernel = backend_ctx->kernel_pack_b_for_image;
@@ -5118,8 +5114,8 @@ static void ggml_cl_mul_mat_f16_f32_image(ggml_backend_t backend, const ggml_ten
     CL_CHECK(clSetKernelArg(pack_b_kernel, 2, sizeof(cl_mem),   &b_image));
     CL_CHECK(clSetKernelArg(pack_b_kernel, 3, sizeof(int),      &K));
     CL_CHECK(clSetKernelArg(pack_b_kernel, 4, sizeof(int),      &N));
-    const size_t pack_b_gws[2] = { (size_t)N_4, (size_t)K };
-    CL_CHECK(clEnqueueNDRangeKernel(queue, pack_b_kernel, 2, NULL, pack_b_gws, NULL, 0, NULL, &pack_events[1]));
+    size_t pack_b_gws[2] = { (size_t)N_4, (size_t)K };
+    backend_ctx->enqueue_ndrange_kernel(pack_b_kernel, 2, pack_b_gws, NULL, src1);
 
     // Launch matmul kernel
     cl_kernel matmul_kernel = backend_ctx->kernel_mul_mat_f16_f32_image;
@@ -5131,17 +5127,17 @@ static void ggml_cl_mul_mat_f16_f32_image(ggml_backend_t backend, const ggml_ten
     CL_CHECK(clSetKernelArg(matmul_kernel, 5, sizeof(int),      &N));
     CL_CHECK(clSetKernelArg(matmul_kernel, 6, sizeof(int),      &K));
 
-    const int OPWM = 64;
-    const int OPWN = 64;
-    const size_t lws[2] = { 16, 8 }; // WG_M, WG_N
-    const size_t gws[2] = { (size_t)ceil((float)M / OPWM) * lws[0], (size_t)ceil((float)N / OPWN) * lws[1] };
-    CL_CHECK(clEnqueueNDRangeKernel(queue, matmul_kernel, 2, NULL, gws, lws, 2, pack_events, &matmul_event));
+    size_t lws[2] = { 16, 8 };
+    const size_t req_gws_x = (size_t)N_4;
+    const size_t req_gws_y = (size_t)M;
+    size_t gws[2] = {
+        (req_gws_x + lws[0] - 1) / lws[0] * lws[0],
+        (req_gws_y + lws[1] - 1) / lws[1] * lws[1],
+    };
+    backend_ctx->enqueue_ndrange_kernel(matmul_kernel, 2, gws, lws, dst);
 
-    // Wait for matmul to finish and release resources
-    CL_CHECK(clWaitForEvents(1, &matmul_event));
-    CL_CHECK(clReleaseEvent(pack_events[0]));
-    CL_CHECK(clReleaseEvent(pack_events[1]));
-    CL_CHECK(clReleaseEvent(matmul_event));
+    // Release resources. The OpenCL runtime will ensure kernels are finished
+    // before releasing the memory objects.
     CL_CHECK(clReleaseMemObject(a_image));
     CL_CHECK(clReleaseMemObject(b_image));
 }
