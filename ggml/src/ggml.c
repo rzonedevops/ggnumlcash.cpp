@@ -1006,8 +1006,9 @@ static const char * GGML_OP_NAME[GGML_OP_COUNT] = {
     "CROSS_ENTROPY_LOSS",
     "CROSS_ENTROPY_LOSS_BACK",
     "OPT_STEP_ADAMW",
-    "GLU",
     "OPT_STEP_SGD",
+
+    "GLU",
 };
 
 static_assert(GGML_OP_COUNT == 87, "GGML_OP_COUNT != 87");
@@ -1106,8 +1107,9 @@ static const char * GGML_OP_SYMBOL[GGML_OP_COUNT] = {
     "cross_entropy_loss(x,y)",
     "cross_entropy_loss_back(x,y)",
     "adamw(x)",
-    "glu(x)",
     "sgd(x)",
+
+    "glu(x)",
 };
 
 static_assert(GGML_OP_POOL_COUNT == 2, "GGML_OP_POOL_COUNT != 2");
