@@ -492,11 +492,9 @@ void IMatrixCollector::save_imatrix_legacy(int32_t ncall) const {
 
 void IMatrixCollector::save_imatrix(int32_t n_chunk) const {
     auto fname = m_params.out_file;
-    auto imat_type = m_params.imat_out_type;
+    bool use_legacy_format = m_params.imat_dat;
 
-    if ((imat_type == COMMON_IMATRIX_FORMAT_AUTO && string_ends_with(fname, ".dat")) ||
-        (imat_type == COMMON_IMATRIX_FORMAT_DAT)) {
-        LOG_WRN("\n%s: saving to legacy imatrix format\n", __func__);
+    if (use_legacy_format) {
         this->save_imatrix_legacy(n_chunk);
         return;
     }
