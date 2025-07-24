@@ -7,7 +7,7 @@ More information is available in <https://github.com/ggml-org/llama.cpp/pull/486
 
 ```
 ./llama-imatrix \
-    -m model.gguf -f some-text.txt [-o imatrix.gguf] [--no-ppl] \
+    -m model.gguf -f some-text.txt [-o imatrix.gguf] [--output-format {gguf,dat}] [--no-ppl] \
     [--process-output] [--chunk 123] [--save-frequency 0] [--output-frequency 10] \
     [--in-file imatrix-prev-0.gguf --in-file imatrix-prev-1.gguf ...] [--parse-special] \
     [--show-statistics] [...]
@@ -20,6 +20,7 @@ The parameters in square brackets are optional and have the following meaning:
 * `-lv | --verbosity` specifies the verbosity level. If set to `0`, no output other than the perplexity of the processed chunks will be generated. If set to `1`, each time the results are saved a message is written to `stderr`. If `>=2`, a message is output each time data is collected for any tensor. Default verbosity level is `1`.
 * `-o | --output-file` specifies the name of the file where the computed data will be stored. If missing `imatrix.gguf` is used.
 * `-ofreq | --output-frequency` specifies how often the so far computed result is saved to disk. Default is 10 (i.e., every 10 chunks)
+* `--output-format` specifies the output format of the generated imatrix file. Either "gguf", or "dat" (the legacy format). Defaults to "gguf" unless the output filename ends with `.dat`.
 * `--save-frequency` specifies how often to save a copy of the imatrix in a separate file. Default is 0 (i.e., never)
 * `--process-output` specifies if data will be collected for the `output.weight` tensor. Typically, it is better not to utilize the importance matrix when quantizing `output.weight`, so this is set to `false` by default.
 * `--in-file` one or more existing imatrix files to load and combine. Useful for merging files from multiple runs/datasets.

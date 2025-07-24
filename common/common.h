@@ -233,6 +233,12 @@ enum common_reasoning_format {
     COMMON_REASONING_FORMAT_DEEPSEEK,        // Extract thinking tag contents and return as `message.reasoning_content`, including in streaming deltas.
 };
 
+enum common_imatrix_format_type {
+    COMMON_IMATRIX_FORMAT_AUTO,
+    COMMON_IMATRIX_FORMAT_GGUF,
+    COMMON_IMATRIX_FORMAT_DAT,  // legacy
+};
+
 struct common_params {
     int32_t n_predict             =    -1; // new tokens to predict
     int32_t n_ctx                 =  4096; // context size
@@ -431,6 +437,7 @@ struct common_params {
     int32_t n_out_freq  = 10; // output the imatrix every n_out_freq iterations
     int32_t n_save_freq =  0; // save the imatrix every n_save_freq iterations
     int32_t i_chunk     =  0; // start processing from this chunk
+    common_imatrix_format_type imat_out_type = COMMON_IMATRIX_FORMAT_AUTO; // format of the output imatrix
 
     bool process_output  = false; // collect data for the output tensor
     bool compute_ppl     = true;  // whether to compute perplexity
