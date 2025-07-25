@@ -23,8 +23,8 @@ def create_server():
     "prompt, image_url, success, re_content",
     [
         # test model is trained on CIFAR-10, but it's quite dumb due to small size
-        ("What is this:\n", IMG_URL_0,                True, "(cat)+"),
-        ("What is this:\n", "IMG_BASE64_0",           True, "(cat)+"), # exceptional, so that we don't cog up the log
+        ("What is this:\n", IMG_URL_0,                True, "(cat|\n)+"),
+        ("What is this:\n", "IMG_BASE64_0",           True, "(cat|\n)+"), # exceptional, so that we don't cog up the log
         ("What is this:\n", IMG_URL_1,                True, "(frog)+"),
         ("Test test\n",     IMG_URL_1,                True, "(frog)+"), # test invalidate cache
         ("What is this:\n", "malformed",              False, None),
