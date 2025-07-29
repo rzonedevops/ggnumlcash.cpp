@@ -1534,15 +1534,22 @@ template <typename BLOC_TYPE, int64_t INTER_SIZE, int64_t NB_COLS, ggml_type PAR
                     continue;
                 }
 
+#if 1
                 memcpy(         htmp       + i02*nbht2 + htpe[i02]*nbht1,
                        (char *) src1->data + i12*nb12  + (i20%ne11)*nb11,
                                 ggml_row_size(GGML_TYPE_F32, ne10));
+#else
+                from_float(
+                        (float *)((char *) src1->data + i12*nb12  + (i20%ne11)*nb11),
+                        (void  *) (hsrc1 + htpe[i02]*nbh11 + i02*nbh12), ne10);
+#endif
 
                 hids[i12*ne20 + i20] = i02*ne12 + htpe[i02];
                 htpe[i02]++;
             }
         }
 
+#if 1
         // htmp (float32) => hsrc1 (param type)
         for (int64_t i02 = 0; i02 < ne02; ++i02) { // n_expert
             if (i02 % nth != ith) {
@@ -1563,6 +1570,7 @@ template <typename BLOC_TYPE, int64_t INTER_SIZE, int64_t NB_COLS, ggml_type PAR
                         (void  *) (hsrc1 + i11*nbh11 + i02*nbh12), ne10);
             }
         }
+#endif
 
         ggml_barrier(params->threadpool);
 
