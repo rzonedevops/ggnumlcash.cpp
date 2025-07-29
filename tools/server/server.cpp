@@ -2188,6 +2188,7 @@ struct server_context {
                 if (!ret || slot.t_last_used <= t_last) {
                     t_last = slot.t_last_used;
                     ret = &slot;
+                    break; // TMP: always pick the first non-processing slot
                 }
             }
 
