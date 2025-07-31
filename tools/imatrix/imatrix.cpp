@@ -127,7 +127,6 @@ bool IMatrixCollector::collect_imatrix(struct ggml_tensor * t, bool ask, void * 
 
         GGML_ASSERT(ids->ne[1] == src1->ne[2]);
 
-        // TODO: 4d? (is that even used in practice?)
         // the extra dimension would need to be stored somewhere to be reflected in the imatrix file
         if (ggml_nrows(src1) != src1->ne[1] * src1->ne[2]) {
             LOG_ERR("%s: tensor has more than 3 dimensions: %s", __func__, wname.c_str());
@@ -197,7 +196,7 @@ bool IMatrixCollector::collect_imatrix(struct ggml_tensor * t, bool ask, void * 
         }
     } else {
         auto & e = m_stats[wname];
-        const int64_t n_mat = src1->ne[2] * src1->ne[3];
+        const int64_t n_mat = src0->ne[2] * src0->ne[3];
 
         // use a single count per dense tensor
         if ((int64_t) e.counts.size() == n_mat) {
@@ -220,19 +219,16 @@ bool IMatrixCollector::collect_imatrix(struct ggml_tensor * t, bool ask, void * 
             LOG_ERR("%s: inconsistent size for %s (%d vs %d)\n", __func__, wname.c_str(), (int)e.values.size(), (int)(src1->ne[0] * n_mat));
             exit(1); //GGML_ABORT("fatal error");
         }
-        else if (e.counts.size() != 1) {
-            LOG_ERR("%s: inconsistent matrix count for %s (%d vs %d)\n", __func__, wname.c_str(), (int)e.counts.size(), 1);
-            exit(1); //GGML_ABORT("fatal error");
-        }
         LOG_DBGV(2, "%s[%d]: %32s, %s, %5d x %5d x %5d, %d\n", __func__, m_last_chunk, wname.c_str(), ggml_op_name(t->op), (int)src1->ne[0], (int)src1->ne[1], (int)src1->ne[2], (int)src1->type);
 
         for (int64_t i3 = 0; i3 < src1->ne[3]; ++i3) {
             for (int64_t i2 = 0; i2 < src1->ne[2]; ++i2) {
-                const int64_t mat_id = i3 * src1->ne[2] + i2;
+                // handle 3D+ tensors, but flatten 3D+ activations when model tensor is 2D
+                const int64_t mat_id = (i3 % src0->ne[3]) * src0->ne[2] + (i2 % src0->ne[2]);
                 const int64_t mat_start = mat_id * src1->ne[0];
 
                 for (int64_t row = 0; row < src1->ne[1]; ++row) {
-                    const float * x = (const float *) (data + row * src1->nb[1] + i2 * src1->nb[2] + i3 * src1->ne[3]);
+                    const float * x = (const float *) (data + row * src1->nb[1] + i2 * src1->nb[2] + i3 * src1->nb[3]);
                     for (int64_t j = 0; j < src1->ne[0]; ++j) {
                         e.values[mat_start + j] += x[j] * x[j];
                         if (!std::isfinite((float)e.values[j])) {
@@ -243,16 +239,19 @@ bool IMatrixCollector::collect_imatrix(struct ggml_tensor * t, bool ask, void * 
                 }
             }
         }
-        e.counts[0] += src1->ne[1];
-        const int32_t n_chunk = e.counts[0] / chunk_size;
-        if (n_chunk > m_last_chunk) {
-            const int32_t chunk_step = n_chunk - m_last_chunk;
-            m_last_chunk = n_chunk;
-            if ((m_last_chunk % m_params.n_out_freq) / chunk_step == 0) {
-                save_imatrix();
-            }
-            if (m_params.n_save_freq > 0 && (m_last_chunk % m_params.n_save_freq) / chunk_step == 0) {
-                save_imatrix(m_last_chunk);
+        // only 1 count in practice, except when a tensor is used for both MUL_MAT_ID and MUL_MAT
+        for (size_t i = 0; i < e.counts.size(); ++i) {
+            e.counts[i] += ggml_nrows(src1);
+            const int32_t n_chunk = e.counts[i] / chunk_size;
+            if (n_chunk > m_last_chunk) {
+                const int32_t chunk_step = n_chunk - m_last_chunk;
+                m_last_chunk = n_chunk;
+                if ((m_last_chunk % m_params.n_out_freq) / chunk_step == 0) {
+                    save_imatrix();
+                }
+                if (m_params.n_save_freq > 0 && (m_last_chunk % m_params.n_save_freq) / chunk_step == 0) {
+                    save_imatrix(m_last_chunk);
+                }
             }
         }
     }
