@@ -337,7 +337,8 @@ bool IMatrixCollector::collect_imatrix(struct ggml_tensor * t, bool ask, void * 
         const int64_t n_mat = src0->ne[2] * src0->ne[3];
 
         // use a single count per dense tensor
-        if ((int64_t) e.counts.size() == n_mat) {
+        // (necessary when merging older GGUF-imatrix files with 3d tensors)
+        if (e.counts.size() > 1) {
             bool all_equal = true;
             for (size_t i = 1; i < e.counts.size(); ++i) {
                 if (e.counts[0] != e.counts[i]) {
@@ -379,7 +380,7 @@ bool IMatrixCollector::collect_imatrix(struct ggml_tensor * t, bool ask, void * 
         }
         // only 1 count in practice, except when a tensor is used for both MUL_MAT_ID and MUL_MAT
         for (size_t i = 0; i < e.counts.size(); ++i) {
-            e.counts[i] += ggml_nrows(src1);
+            e.counts[i] += ggml_nrows(src1) / n_mat;
             const int32_t n_chunk = e.counts[i] / chunk_size;
             if (n_chunk > m_last_chunk) {
                 const int32_t chunk_step = n_chunk - m_last_chunk;
