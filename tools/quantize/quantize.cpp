@@ -132,6 +132,7 @@ static void usage(const char * executable) {
     printf("  --prune-layers L0,L1,L2...comma-separated list of layer numbers to prune from the model\n");
     printf("      Advanced option to remove all tensors from the given layers\n");
     printf("  --keep-split: will generate quantized model in the same shards as input\n");
+    printf("  --prior-weight N: how many tokens the neutral prior is worth (when using imatrix)\n");
     printf("  --override-kv KEY=TYPE:VALUE\n");
     printf("      Advanced option to override model metadata by key in the quantized model. May be specified multiple times.\n");
     printf("Note: --include-weights and --exclude-weights cannot be used together\n");
@@ -213,7 +214,7 @@ static int load_legacy_imatrix(const std::string & imatrix_file, std::vector<std
     return m_last_call;
 }
 
-static int load_imatrix(const std::string & imatrix_file, std::vector<std::string> & imatrix_datasets, std::unordered_map<std::string, std::vector<float>> & imatrix_data) {
+static int load_imatrix(const std::string & imatrix_file, std::vector<std::string> & imatrix_datasets, std::unordered_map<std::string, std::vector<float>> & imatrix_data, float prior_weight) {
 
     struct ggml_context * ctx = nullptr;
     struct gguf_init_params meta_gguf_params = {
@@ -289,7 +290,7 @@ static int load_imatrix(const std::string & imatrix_file, std::vector<std::strin
             const float count = ((const float *) counts->data)[j];
             if (count > 0.0f) {
                 for (int64_t i = 0; i < ne0; ++i) {
-                    e[j*ne0 + i] = ((const float *) sums->data)[j*ne0 + i] / count;
+                    e[j*ne0 + i] = (((const float *) sums->data)[j*ne0 + i] + prior_weight) / (count + prior_weight);
                 }
             } else {
                 // Partial imatrix data, this tensor never got any input during calibration
@@ -331,10 +332,11 @@ static int prepare_imatrix(const std::string & imatrix_file,
         std::vector<std::string> & imatrix_dataset,
         const std::vector<std::string> & included_weights,
         const std::vector<std::string> & excluded_weights,
-        std::unordered_map<std::string, std::vector<float>> & imatrix_data) {
+        std::unordered_map<std::string, std::vector<float>> & imatrix_data,
+        float prior_weight) {
     int m_last_call = -1;
     if (!imatrix_file.empty()) {
-        m_last_call = load_imatrix(imatrix_file, imatrix_dataset, imatrix_data);
+        m_last_call = load_imatrix(imatrix_file, imatrix_dataset, imatrix_data, prior_weight);
     }
     if (imatrix_data.empty()) {
         return m_last_call;
@@ -452,6 +454,7 @@ int main(int argc, char ** argv) {
     std::vector<llama_model_kv_override> kv_overrides;
     std::vector<tensor_quantization> tensor_types;
     std::vector<int> prune_layers;
+    float prior_weight = 1.0f;
 
     for (; arg_idx < argc && strncmp(argv[arg_idx], "--", 2) == 0; arg_idx++) {
         if (strcmp(argv[arg_idx], "--leave-output-tensor") == 0) {
@@ -510,6 +513,16 @@ int main(int argc, char ** argv) {
             }
         } else if (strcmp(argv[arg_idx], "--keep-split") == 0) {
             params.keep_split = true;
+        } else if (strcmp(argv[arg_idx], "--prior-weight") == 0) {
+            if (arg_idx < argc-1) {
+                try {
+                    prior_weight = std::stof(argv[++arg_idx]);
+                } catch (...) {
+                    usage(argv[0]);
+                }
+            } else {
+                usage(argv[0]);
+            }
         } else {
             usage(argv[0]);
         }
@@ -525,7 +538,7 @@ int main(int argc, char ** argv) {
 
     std::vector<std::string> imatrix_datasets;
     std::unordered_map<std::string, std::vector<float>> imatrix_data;
-    int m_last_call = prepare_imatrix(imatrix_file, imatrix_datasets, included_weights, excluded_weights, imatrix_data);
+    int m_last_call = prepare_imatrix(imatrix_file, imatrix_datasets, included_weights, excluded_weights, imatrix_data, prior_weight);
     if (!imatrix_data.empty()) {
         params.imatrix = &imatrix_data;
         {
