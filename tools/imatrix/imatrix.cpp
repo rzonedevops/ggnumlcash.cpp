@@ -512,7 +512,11 @@ void IMatrixCollector::save_imatrix(int32_t n_chunk) const {
         this->save_imatrix_legacy(n_chunk);
         return;
     }
-    // else, default to GGUF imatrix
+    if (!string_ends_with(fname, ".gguf")) {
+        // allowed, but hopefully this raises awareness
+        LOG_WRN("\n%s: saving imatrix using GGUF format with a different suffix than .gguf\n", __func__);
+        LOG_WRN("%s: if you want the previous imatrix format, use --output-format dat\n", __func__);
+    }
 
     if (n_chunk > 0) {
         fname += ".at_";
