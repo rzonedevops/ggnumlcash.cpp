@@ -506,14 +506,14 @@ void IMatrixCollector::save_imatrix_legacy(int32_t ncall) const {
 
 void IMatrixCollector::save_imatrix(int32_t n_chunk) const {
     auto fname = m_params.out_file;
-    bool use_legacy_format = m_params.imat_dat;
+    int8_t use_legacy_format = m_params.imat_dat;
 
-    if (use_legacy_format) {
+    if (use_legacy_format > 0) {
         this->save_imatrix_legacy(n_chunk);
         return;
     }
-    if (!string_ends_with(fname, ".gguf")) {
-        // allowed, but hopefully this raises awareness
+    // only warn when `--output-format gguf` is not specified
+    if (use_legacy_format == 0 && !string_ends_with(fname, ".gguf")) {
         LOG_WRN("\n%s: saving imatrix using GGUF format with a different suffix than .gguf\n", __func__);
         LOG_WRN("%s: if you want the previous imatrix format, use --output-format dat\n", __func__);
     }
