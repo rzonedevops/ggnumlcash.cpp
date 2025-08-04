@@ -69,6 +69,7 @@ static const char * const LLM_KV_QUANTIZE_IMATRIX_FILE       = "quantize.imatrix
 static const char * const LLM_KV_QUANTIZE_IMATRIX_DATASET    = "quantize.imatrix.dataset";
 static const char * const LLM_KV_QUANTIZE_IMATRIX_N_ENTRIES  = "quantize.imatrix.entries_count";
 static const char * const LLM_KV_QUANTIZE_IMATRIX_N_CHUNKS   = "quantize.imatrix.chunks_count";
+static const char * const LLM_KV_QUANTIZE_IMATRIX_PRIOR_W    = "quantize.imatrix.prior_weight";
 
 // TODO: share with imatrix.cpp
 static const char * const LLM_KV_IMATRIX_DATASETS    = "imatrix.datasets";
@@ -214,7 +215,7 @@ static int load_legacy_imatrix(const std::string & imatrix_file, std::vector<std
     return m_last_call;
 }
 
-static int load_imatrix(const std::string & imatrix_file, std::vector<std::string> & imatrix_datasets, std::unordered_map<std::string, std::vector<float>> & imatrix_data, float prior_weight) {
+static int load_imatrix(const std::string & imatrix_file, std::vector<std::string> & imatrix_datasets, std::unordered_map<std::string, std::vector<float>> & imatrix_data, float & prior_weight) {
 
     struct ggml_context * ctx = nullptr;
     struct gguf_init_params meta_gguf_params = {
@@ -224,6 +225,7 @@ static int load_imatrix(const std::string & imatrix_file, std::vector<std::strin
     struct gguf_context * ctx_gguf = gguf_init_from_file(imatrix_file.c_str(), meta_gguf_params);
     if (!ctx_gguf) {
         fprintf(stderr, "%s: imatrix file '%s' is using old format\n", __func__, imatrix_file.c_str());
+        prior_weight = 0.0f; // can't use a prior weight without having proper activation counts
         return load_legacy_imatrix(imatrix_file, imatrix_datasets, imatrix_data);
     }
     const int32_t n_entries = gguf_get_n_tensors(ctx_gguf);
@@ -333,7 +335,7 @@ static int prepare_imatrix(const std::string & imatrix_file,
         const std::vector<std::string> & included_weights,
         const std::vector<std::string> & excluded_weights,
         std::unordered_map<std::string, std::vector<float>> & imatrix_data,
-        float prior_weight) {
+        float & prior_weight) {
     int m_last_call = -1;
     if (!imatrix_file.empty()) {
         m_last_call = load_imatrix(imatrix_file, imatrix_dataset, imatrix_data, prior_weight);
@@ -572,6 +574,14 @@ int main(int argc, char ** argv) {
             std::strcpy(kvo.key, LLM_KV_QUANTIZE_IMATRIX_N_CHUNKS);
             kvo.tag = LLAMA_KV_OVERRIDE_TYPE_INT;
             kvo.val_i64 = m_last_call;
+            kv_overrides.emplace_back(std::move(kvo));
+        }
+
+        {
+            llama_model_kv_override kvo;
+            std::strcpy(kvo.key, LLM_KV_QUANTIZE_IMATRIX_PRIOR_W);
+            kvo.tag = LLAMA_KV_OVERRIDE_TYPE_FLOAT;
+            kvo.val_f64 = prior_weight;
             kv_overrides.emplace_back(std::move(kvo));
         }
     }
