@@ -26,7 +26,7 @@
 static void print_usage(int, char ** argv) {
     LOG("\nexample usage:\n");
     LOG("\n    %s \\\n"
-            "       -m model.gguf -f some-text.txt [-o imatrix.gguf] [--no-ppl] \\\n"
+            "       -m model.gguf -f some-text.txt [-o imatrix.gguf] [--output-format {gguf,dat}] [--no-ppl] \\\n"
             "       [--process-output] [--chunk 123] [--save-frequency 0] [--output-frequency 10] \\\n"
             "       [--in-file imatrix-prev-0.gguf --in-file imatrix-prev-1.gguf ...] [--parse-special] \\\n"
             "       [--show-statistics] [...]\n" , argv[0]);
@@ -506,12 +506,16 @@ void IMatrixCollector::save_imatrix_legacy(int32_t ncall) const {
 
 void IMatrixCollector::save_imatrix(int32_t n_chunk) const {
     auto fname = m_params.out_file;
+    int8_t use_legacy_format = m_params.imat_dat;
 
-    // TODO: use the new format in more cases
-    if (!string_ends_with(fname, ".gguf")) {
-        LOG_WRN("\n%s: saving to legacy imatrix format because output suffix is not .gguf\n", __func__);
+    if (use_legacy_format > 0) {
         this->save_imatrix_legacy(n_chunk);
         return;
+    }
+    // only warn when `--output-format gguf` is not specified
+    if (use_legacy_format == 0 && !string_ends_with(fname, ".gguf")) {
+        LOG_WRN("\n%s: saving imatrix using GGUF format with a different suffix than .gguf\n", __func__);
+        LOG_WRN("%s: if you want the previous imatrix format, use --output-format dat\n", __func__);
     }
 
     if (n_chunk > 0) {
