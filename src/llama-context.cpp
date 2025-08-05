@@ -1328,21 +1328,21 @@ uint32_t llama_context::output_reserve(int32_t n_outputs) {
 }
 
 void llama_context::output_reorder() {
-    const uint32_t n_vocab = model.vocab.n_tokens();
+    const uint64_t n_vocab = model.vocab.n_tokens();
     const uint64_t n_embd  = model.hparams.n_embd;
 
-    for (uint32_t s = 0; s < output_swaps.size(); ++s) {
-        const uint32_t i0 = output_swaps[s].i0;
-        const uint32_t i1 = output_swaps[s].i1;
+    for (size_t s = 0; s < output_swaps.size(); ++s) {
+        const uint64_t i0 = output_swaps[s].i0;
+        const uint64_t i1 = output_swaps[s].i1;
 
         if (logits_size > 0) {
-            for (uint32_t k = 0; k < n_vocab; k++) {
+            for (uint64_t k = 0; k < n_vocab; k++) {
                 std::swap(logits[i0*n_vocab + k], logits[i1*n_vocab + k]);
             }
         }
 
         if (embd_size > 0) {
-            for (uint32_t k = 0; k < n_embd; k++) {
+            for (uint64_t k = 0; k < n_embd; k++) {
                 std::swap(embd[i0*n_embd + k], embd[i1*n_embd + k]);
             }
         }
