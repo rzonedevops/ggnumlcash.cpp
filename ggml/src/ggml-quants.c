@@ -566,7 +566,7 @@ static float make_q3_quants(int n, int nmax, const float * GGML_RESTRICT x, int8
         for (int i = 0; i < n; ++i) {
             L[i] += nmax;
         }
-        return sumlx / suml2;
+        return suml2 > 0.0f ? sumlx / suml2 : 0.0f;
     }
     for (int i = 0; i < n; ++i) {
         int l = nearest_int(iscale * x[i]);
