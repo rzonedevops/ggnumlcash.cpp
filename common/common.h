@@ -247,6 +247,7 @@ enum common_reasoning_format {
     COMMON_REASONING_FORMAT_DEEPSEEK,        // Extract thinking tag contents and return as `message.reasoning_content`, including in streaming deltas.
     // do not extend this enum unless you absolutely have to
     // in most cases, use COMMON_REASONING_FORMAT_AUTO
+    // see: https://github.com/ggml-org/llama.cpp/pull/15408
 };
 
 
