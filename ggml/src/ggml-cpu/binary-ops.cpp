@@ -149,7 +149,7 @@ static void binary_op(const ggml_compute_params * params, ggml_tensor * dst) {
 
     /*  */ if (!src0 || !src1) { // scalar
         if (dst->type == GGML_TYPE_I32) {
-            if constexpr (op == op_div) {
+            if (op == op_div) {
                 apply_scalar_div_op(params, dst);
             } else {
                 GGML_ABORT("%s: unsupported op\n", __func__);
