@@ -2649,7 +2649,7 @@ class GrokModel(TextModel):
             tokenizer = json.load(f)
 
         vocab_size = tokenizer["vocab_size"]
-        tokens: list[str] = [f"[PAD{i}]".encode("utf-8") for i in range(vocab_size)]
+        tokens: list[str] = [f"[PAD{i}]" for i in range(vocab_size)]
         scores: list[float] = [-10000.0] * vocab_size
         toktypes: list[int] = [gguf.TokenType.UNUSED] * vocab_size
 
