@@ -2649,19 +2649,19 @@ class GrokModel(TextModel):
             tokenizer = json.load(f)
 
         vocab_size = tokenizer["vocab_size"]
-        tokens: list[bytes] = [f"[PAD{i}]".encode("utf-8") for i in range(vocab_size)]
+        tokens: list[str] = [f"[PAD{i}]".encode("utf-8") for i in range(vocab_size)]
         scores: list[float] = [-10000.0] * vocab_size
         toktypes: list[int] = [gguf.TokenType.UNUSED] * vocab_size
 
-        def decode_grok_token(token: dict, toktype: gguf.TokenType) -> tuple[gguf.TokenType, int, bytes]:
-            tokid = token["token"]
-            tokb = token["bytes"]
+        def decode_grok_token(token: dict, toktype: gguf.TokenType) -> tuple[gguf.TokenType, int, str]:
+            tokid: int = token["token"]
+            tokb: list[int] = token["bytes"]
             try:
                 tokc = bytes(tokb).decode("utf-8")
             except Exception:
                 tokc = None
-            if len(tokb) == 1 or not tokc:
-                return gguf.TokenType.BYTE, tokid, "<0x{:02X}>".format(tokb[0]).encode("utf-8")
+            if len(tokb) == 1 or tokc is None:
+                return gguf.TokenType.BYTE, tokid, "<0x{:02X}>".format(tokb[0])
             else:
                 return toktype, tokid, tokc
 
