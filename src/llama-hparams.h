@@ -80,8 +80,9 @@ struct llama_hparams {
     float f_norm_rms_eps;
     float f_norm_group_eps;
 
-    float f_attn_logit_softcapping  = 50.0f;
-    float f_final_logit_softcapping = 30.0f;
+    float f_attn_logit_softcapping   = 50.0f;
+    float f_router_logit_softcapping = 30.0f;
+    float f_final_logit_softcapping  = 30.0f;
 
     // for RWKV
     uint32_t rescale_every_n_layers = 0;
@@ -133,6 +134,7 @@ struct llama_hparams {
     float f_residual_scale  = 0.0f;
     float f_embedding_scale = 0.0f;
     float f_attention_scale = 0.0f;
+    float f_attn_out_scale  = 0.0f;
 
     bool causal_attn   = true;
     bool use_alibi     = false;
