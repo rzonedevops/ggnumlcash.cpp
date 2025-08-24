@@ -2653,15 +2653,15 @@ class GrokModel(TextModel):
         scores: list[float] = [-10000.0] * vocab_size
         toktypes: list[int] = [gguf.TokenType.UNUSED] * vocab_size
 
-        def decode_grok_token(token: dict, toktype: gguf.TokenType) -> tuple[gguf.TokenType, int, str]:
+        def decode_grok_token(token: dict, toktype: gguf.TokenType) -> tuple[gguf.TokenType, int, bytes]:
             tokid = token["token"]
             tokb = token["bytes"]
             try:
                 tokc = bytes(tokb).decode("utf-8")
-            except:
+            except Exception:
                 tokc = None
             if len(tokb) == 1 or not tokc:
-                return gguf.TokenType.BYTE, tokid, "<0x{:02X}>".format(tokb[0])
+                return gguf.TokenType.BYTE, tokid, "<0x{:02X}>".format(tokb[0]).encode("utf-8")
             else:
                 return toktype, tokid, tokc
 
