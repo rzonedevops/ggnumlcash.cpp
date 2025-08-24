@@ -2656,13 +2656,17 @@ class GrokModel(TextModel):
         def decode_grok_token(token: dict, toktype: gguf.TokenType) -> tuple[gguf.TokenType, int, str]:
             tokid: int = token["token"]
             tokb: list[int] = token["bytes"]
-            try:
-                tokc = bytes(tokb).decode("utf-8")
-            except Exception:
-                tokc = None
-            if len(tokb) == 1 or tokc is None:
+            if len(tokb) == 1:
                 return gguf.TokenType.BYTE, tokid, "<0x{:02X}>".format(tokb[0])
             else:
+                try:
+                    tokc = bytes(tokb).decode("utf-8")
+                except Exception:
+                    tokc = None
+                if tokc is None or not all(tokb):
+                    # Incomplete UTF-8 sequence or \0 bytes, escape it
+                    # probably doesn't tokenize correctly, but at least won't crash
+                    tokc = repr(bytes(tokb))[2:-1]
                 return toktype, tokid, tokc
 
         for token in tokenizer["special_tokens"]:
@@ -2676,8 +2680,11 @@ class GrokModel(TextModel):
             toktype, tokid, tokc = decode_grok_token(token, gguf.TokenType.NORMAL)
             tokens[tokid] = tokc
             toktypes[tokid] = toktype
-            scores[tokid] = score
-            score -= 1.0
+            if toktype == gguf.TokenType.BYTE:
+                scores[tokid] = 0.0
+            else:
+                scores[tokid] = score
+                score -= 1.0
 
         self.gguf_writer.add_tokenizer_model("llama")
         self.gguf_writer.add_tokenizer_pre("default")
