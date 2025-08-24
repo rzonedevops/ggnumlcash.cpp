@@ -2656,11 +2656,13 @@ class GrokModel(TextModel):
         def decode_grok_token(token: dict, toktype: gguf.TokenType) -> tuple[gguf.TokenType, int, str]:
             tokid: int = token["token"]
             tokb: list[int] = token["bytes"]
+            if tokb == [32]:
+                tokb = [0xe2, 0x96, 0x81]
             if len(tokb) == 1:
                 return gguf.TokenType.BYTE, tokid, "<0x{:02X}>".format(tokb[0])
             else:
                 try:
-                    tokc = bytes(tokb).decode("utf-8")
+                    tokc = bytes(tokb).decode("utf-8").replace(" ", "▁")
                 except Exception:
                     tokc = None
                 if tokc is None or not all(tokb):
@@ -2722,7 +2724,7 @@ class GrokModel(TextModel):
 
     def modify_tensors(self, data_torch: Tensor, name: str, bid: int | None) -> Iterable[tuple[str, Tensor]]:
         # process the experts separately
-        if name.find(".moe.") != -1:
+        if name.find(".moe.") != -1 or name.find(".block_sparse_moe.") != -1:
             n_experts = self.hparams["num_local_experts"]
 
             assert bid is not None
@@ -2736,17 +2738,19 @@ class GrokModel(TextModel):
                 tensors: list[tuple[str, Tensor]] = []
 
                 # merge the experts into a single 3d tensor
-                for wid in ["linear", "linear_1", "linear_v"]:
+                for wid in [("linear", "w1"), ("linear_1", "w2"), ("linear_v", "w3")]:
                     datas: list[Tensor] = []
 
                     for xid in range(n_experts):
-                        ename = f"transformer.decoder_layer.{bid}.moe.{xid}.{wid}.weight"
+                        ename = f"transformer.decoder_layer.{bid}.moe.{xid}.{wid[0]}.weight"
+                        if ename not in self._experts[bid]:
+                            ename = f"model.layers.{bid}.block_sparse_moe.experts.{xid}.{wid[1]}.weight"
                         datas.append(self._experts[bid][ename])
                         del self._experts[bid][ename]
 
                     data_torch = torch.stack(datas, dim=0)
 
-                    merged_name = f"transformer.decoder_layer.{bid}.moe.{wid}.weight"
+                    merged_name = f"transformer.decoder_layer.{bid}.moe.{wid[0]}.weight"
 
                     new_name = self.map_tensor_name(merged_name)
 
