@@ -324,10 +324,11 @@ class TensorNameMap:
 
         # Post feed-forward norm
         MODEL_TENSOR.FFN_POST_NORM: (
-            "model.layers.{bid}.post_feedforward_layernorm", # gemma2 olmo2
-            "model.layers.{bid}.post_mlp_layernorm", # glm-4-0414
+            "model.layers.{bid}.post_feedforward_layernorm",  # gemma2 olmo2
+            "model.layers.{bid}.post_mlp_layernorm",          # glm-4-0414
             "model.layers.layers.{bid}.post_mlp_norm.weight", # plamo2
             "model.layers.{bid}.feed_forward.up_proj",
+            "model.layers.{bid}.post_moe_norm",               # grok-2
         ),
 
         MODEL_TENSOR.FFN_GATE_INP: (
@@ -539,7 +540,6 @@ class TensorNameMap:
             "transformer.layer.{bid}.output_layer_norm",    # distillbert
             "encoder.layers.{bid}.norm2",                   # nomic-bert
             "transformer.decoder_layer.{bid}.rms_norm_3",   # Grok
-            "model.layers.{bid}.post_moe_norm",             # grok-2
             "encoder.layer.{bid}.mlp.layernorm",            # jina-bert-v2
             "encoder.layer.{bid}.layer_norm_2",             # jina-v2-code
         ),

@@ -2513,7 +2513,10 @@ bool llama_model::load_tensors(llama_model_loader & ml) {
                         layer.ffn_down_exps = create_tensor(tn(LLM_TENSOR_FFN_DOWN_EXPS, "weight", i), {  n_ff, n_embd, n_expert}, 0);
                         layer.ffn_up_exps   = create_tensor(tn(LLM_TENSOR_FFN_UP_EXPS,   "weight", i), {n_embd,   n_ff, n_expert}, 0);
 
-                        layer.layer_out_norm   = create_tensor(tn(LLM_TENSOR_LAYER_OUT_NORM, "weight", i), {n_embd}, 0);
+                        layer.ffn_post_norm = create_tensor(tn(LLM_TENSOR_LAYER_OUT_NORM, "weight", i), {n_embd}, TENSOR_NOT_REQUIRED);
+                        if (!layer.ffn_post_norm) {
+                            layer.ffn_post_norm = create_tensor(tn(LLM_TENSOR_FFN_POST_NORM, "weight", i), {n_embd}, 0);
+                        }
                     }
                 } break;
             case LLM_ARCH_DBRX:
@@ -6974,14 +6977,10 @@ struct llm_build_grok : public llm_graph_context {
                 inpSA = ggml_get_rows(ctx0, inpSA, inp_out_ids);
             }
 
-            // Grok
-            // if attn_out_norm is present then apply it before adding the input
-            if (model.layers[il].attn_out_norm) {
-                cur = build_norm(cur,
-                        model.layers[il].attn_out_norm, NULL,
-                        LLM_NORM_RMS, il);
-                cb(cur, "attn_out_norm", il);
-            }
+            cur = build_norm(cur,
+                    model.layers[il].attn_out_norm, NULL,
+                    LLM_NORM_RMS, il);
+            cb(cur, "attn_out_norm", il);
 
             ggml_tensor * ffn_inp = ggml_add(ctx0, cur, inpSA);
             cb(ffn_inp, "ffn_inp", il);
@@ -7006,15 +7005,10 @@ struct llm_build_grok : public llm_graph_context {
                     il);
             cb(cur, "ffn_moe_out", il);
 
-            // Grok
-            // if layer_out_norm is present then apply it before adding the input
-            // Idea: maybe ffn_out_norm is a better name
-            if (model.layers[il].layer_out_norm) {
-                cur = build_norm(cur,
-                        model.layers[il].layer_out_norm, NULL,
-                        LLM_NORM_RMS, il);
-                cb(cur, "layer_out_norm", il);
-            }
+            cur = build_norm(cur,
+                    model.layers[il].ffn_post_norm, NULL,
+                    LLM_NORM_RMS, il);
+            cb(cur, "ffn_post_norm", il);
 
             cur = ggml_add(ctx0, cur, ffn_inp);
             cb(cur, "ffn_out", il);
