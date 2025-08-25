@@ -2725,7 +2725,7 @@ class GrokModel(TextModel):
 
     def modify_tensors(self, data_torch: Tensor, name: str, bid: int | None) -> Iterable[tuple[str, Tensor]]:
         # process the experts separately
-        if name.find(".moe.") != -1 or name.find(".block_sparse_moe.") != -1:
+        if name.find(".moe.") != -1 or name.find(".block_sparse_moe.experts.") != -1:
             n_experts = self.hparams["num_local_experts"]
 
             assert bid is not None
