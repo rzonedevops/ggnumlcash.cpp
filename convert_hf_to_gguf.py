@@ -2700,6 +2700,7 @@ class GrokModel(TextModel):
         special_vocab.special_token_ids["pad"] = 0
         special_vocab.special_token_ids["sep"] = 1
         special_vocab.special_token_ids["eos"] = 2
+        special_vocab.chat_template = "{% for message in messages %}{% if message['role'] == 'user' %}{{ 'Human: ' + message['content'].strip() + '<|separator|>\n\n' }}{% elif message['role'] == 'system' %}{{ 'System: ' + message['content'].strip() + '<|separator|>\n\n' }}{% elif message['role'] == 'assistant' %}{{ 'Assistant: '  + message['content'] + '<|separator|>\n\n' }}{% endif %}{% endfor %}{% if add_generation_prompt %}{{ 'Assistant:' }}{% endif %}"
         special_vocab.add_to_gguf(self.gguf_writer)
 
     def __init__(self, *args, **kwargs):
