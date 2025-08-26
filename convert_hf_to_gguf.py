@@ -2717,15 +2717,36 @@ class GrokModel(TextModel):
         if (rope_dim := self.hparams.get("head_dim")) is None:
             rope_dim = self.hparams["hidden_size"] // self.hparams["num_attention_heads"]
 
+        # Treat "original" as "yarn", seems to have been a mistake
+        if self.hparams.get("rope_type") in ("yarn", "original"):
+            # config.json values differ from standard, we may have to add metadata for these:
+            # extrapolation_factor = 1.0
+            # attn_factor = 1.0
+            # beta_fast = 8
+            # beta_slow = 1
+            self.gguf_writer.add_rope_scaling_type(gguf.RopeScalingType.YARN)
+            self.gguf_writer.add_rope_scaling_factor(self.hparams["scaling_factor"])
+            self.gguf_writer.add_rope_scaling_orig_ctx_len(self.hparams["original_max_position_embeddings"])
+
+        if temp_len := self.hparams.get("attn_temperature_len"):
+            self.gguf_writer.add_attn_temperature_length(temp_len)
+
         self.gguf_writer.add_attn_output_scale(self.hparams.get("attn_output_multiplier", rope_dim**-0.5))
         self.gguf_writer.add_embedding_scale(self.hparams["embedding_multiplier_scale"])
         self.gguf_writer.add_logit_scale(self.hparams["output_multiplier_scale"])
 
-    _experts: list[dict[str, Tensor]] | None = None
+    _experts: list[dict[str, list[Tensor]]] | None = None
+    _cur_expert = ""
 
     def modify_tensors(self, data_torch: Tensor, name: str, bid: int | None) -> Iterable[tuple[str, Tensor]]:
+        tensors: list[tuple[str, Tensor]] = []
+        is_expert = ".moe." in name or ".block_sparse_moe.experts." in name
+
+        if not is_expert:
+            tensors.append((self.map_tensor_name(name), data_torch))
+
         # process the experts separately
-        if name.find(".moe.") != -1 or name.find(".block_sparse_moe.experts.") != -1:
+        if is_expert or self._cur_expert:
             n_experts = self.hparams["num_local_experts"]
 
             assert bid is not None
@@ -2733,11 +2754,19 @@ class GrokModel(TextModel):
             if self._experts is None:
                 self._experts = [{} for _ in range(self.block_count)]
 
-            self._experts[bid][name] = data_torch
+            # concatenate split tensors
+            if name in self._experts[bid]:
+                self._cur_expert = name
+                self._experts[bid][name].append(data_torch)
+                return []
+            elif is_expert:
+                self._cur_expert = name
+                self._experts[bid][name] = [data_torch]
+                return []
+            else:
+                self._cur_expert = ""
 
             if len(self._experts[bid]) >= n_experts * 3:
-                tensors: list[tuple[str, Tensor]] = []
-
                 # merge the experts into a single 3d tensor
                 for wid in [("linear", "w1"), ("linear_1", "w2"), ("linear_v", "w3")]:
                     datas: list[Tensor] = []
@@ -2746,7 +2775,8 @@ class GrokModel(TextModel):
                         ename = f"transformer.decoder_layer.{bid}.moe.{xid}.{wid[0]}.weight"
                         if ename not in self._experts[bid]:
                             ename = f"model.layers.{bid}.block_sparse_moe.experts.{xid}.{wid[1]}.weight"
-                        datas.append(self._experts[bid][ename])
+                        tensor_list = self._experts[bid][ename]
+                        datas.append(torch.hstack(tensor_list) if len(tensor_list) > 1 else tensor_list[0])
                         del self._experts[bid][ename]
 
                     data_torch = torch.stack(datas, dim=0)
@@ -2756,11 +2786,8 @@ class GrokModel(TextModel):
                     new_name = self.map_tensor_name(merged_name)
 
                     tensors.append((new_name, data_torch))
-                return tensors
-            else:
-                return []
 
-        return [(self.map_tensor_name(name), data_torch)]
+        return tensors
 
 
 @ModelBase.register("DbrxForCausalLM")
