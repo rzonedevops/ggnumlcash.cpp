@@ -737,6 +737,9 @@ class TextModel(ModelBase):
         if chkhsh == "d4540891389ea895b53b399da6ac824becc30f2fba0e9ddbb98f92e55ca0e97c":
             # ref: https://huggingface.co/Qwen/Qwen3-Embedding-0.6B
             res = "qwen2"
+        if chkhsh == "66b8d4e19ab16c3bfd89bce5d785fb7e0155e8648708a1f42077cb9fe002c273":
+            # ref: https://huggingface.co/alvarobartt/grok-2-tokenizer
+            res = "grok-2"
         if chkhsh == "0ef9807a4087ebef797fc749390439009c3b9eda9ad1a097abbe738f486c01e5":
             # ref: https://huggingface.co/meta-llama/Meta-Llama-3-8B
             res = "llama-bpe"
@@ -2642,6 +2645,10 @@ class GrokModel(TextModel):
     def set_vocab(self):
         if (self.dir_model / 'tokenizer.model').is_file():
             self._set_vocab_sentencepiece()
+            return
+
+        if (self.dir_model / 'tokenizer.json').is_file():
+            self._set_vocab_gpt2()
             return
 
         tokenizer_path = self.dir_model / 'tokenizer.tok.json'
