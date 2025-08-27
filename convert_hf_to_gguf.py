@@ -2724,6 +2724,9 @@ class GrokModel(TextModel):
         if (rope_dim := self.hparams.get("head_dim")) is None:
             rope_dim = self.hparams["hidden_size"] // self.hparams["num_attention_heads"]
 
+        if (moe_intermediate_size := self.hparams.get("moe_intermediate_size")) is not None:
+            self.gguf_writer.add_expert_feed_forward_length(moe_intermediate_size)
+
         # Treat "original" as "yarn", seems to have been a mistake
         if self.hparams.get("rope_type") in ("yarn", "original"):
             # config.json values differ from standard, we may have to add metadata for these:
@@ -2776,7 +2779,7 @@ class GrokModel(TextModel):
             for bid in range(self.block_count):
                 if len(self._experts[bid]) >= n_experts * 3:
                     # merge the experts into a single 3d tensor
-                    for wid in [("linear", "w1"), ("linear_1", "w2"), ("linear_v", "w3")]:
+                    for wid in [("linear", "w1", 0), ("linear_1", "w2", 1), ("linear_v", "w3", 0)]:
                         datas: list[Tensor] = []
 
                         for xid in range(n_experts):
@@ -2784,7 +2787,7 @@ class GrokModel(TextModel):
                             if ename not in self._experts[bid]:
                                 ename = f"model.layers.{bid}.block_sparse_moe.experts.{xid}.{wid[1]}.weight"
                             tensor_list = self._experts[bid][ename]
-                            datas.append(torch.cat(tensor_list) if len(tensor_list) > 1 else tensor_list[0])
+                            datas.append(torch.cat(tensor_list, dim=wid[2]) if len(tensor_list) > 1 else tensor_list[0])
                             del self._experts[bid][ename]
 
                         data_torch = torch.stack(datas, dim=0)
