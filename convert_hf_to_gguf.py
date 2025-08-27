@@ -2766,28 +2766,29 @@ class GrokModel(TextModel):
             else:
                 self._cur_expert = ""
 
-            if len(self._experts[bid]) >= n_experts * 3:
-                # merge the experts into a single 3d tensor
-                for wid in [("linear", "w1"), ("linear_1", "w2"), ("linear_v", "w3")]:
-                    datas: list[Tensor] = []
+            for bid in range(self.block_count):
+                if len(self._experts[bid]) >= n_experts * 3:
+                    # merge the experts into a single 3d tensor
+                    for wid in [("linear", "w1"), ("linear_1", "w2"), ("linear_v", "w3")]:
+                        datas: list[Tensor] = []
 
-                    for xid in range(n_experts):
-                        ename = f"transformer.decoder_layer.{bid}.moe.{xid}.{wid[0]}.weight"
-                        if ename not in self._experts[bid]:
-                            ename = f"model.layers.{bid}.block_sparse_moe.experts.{xid}.{wid[1]}.weight"
-                        tensor_list = self._experts[bid][ename]
-                        datas.append(torch.hstack(tensor_list) if len(tensor_list) > 1 else tensor_list[0])
-                        del self._experts[bid][ename]
+                        for xid in range(n_experts):
+                            ename = f"transformer.decoder_layer.{bid}.moe.{xid}.{wid[0]}.weight"
+                            if ename not in self._experts[bid]:
+                                ename = f"model.layers.{bid}.block_sparse_moe.experts.{xid}.{wid[1]}.weight"
+                            tensor_list = self._experts[bid][ename]
+                            datas.append(torch.cat(tensor_list) if len(tensor_list) > 1 else tensor_list[0])
+                            del self._experts[bid][ename]
 
-                    data_torch = torch.stack(datas, dim=0)
+                        data_torch = torch.stack(datas, dim=0)
 
-                    merged_name = f"transformer.decoder_layer.{bid}.moe.{wid[0]}.weight"
+                        merged_name = f"transformer.decoder_layer.{bid}.moe.{wid[0]}.weight"
 
-                    new_name = self.map_tensor_name(merged_name)
+                        new_name = self.map_tensor_name(merged_name)
 
-                    tensors.append((new_name, data_torch))
+                        yield (new_name, data_torch)
 
-        return tensors
+        yield from tensors
 
 
 @ModelBase.register("DbrxForCausalLM")
