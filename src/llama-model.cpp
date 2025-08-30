@@ -6999,21 +6999,8 @@ struct llm_build_grok : public llm_graph_context {
                     LLM_NORM_RMS, il);
             cb(cur, "ffn_norm", il);
 
-            if (model.layers[il].ffn_up) {
-                cur = build_ffn(cur,
-                        model.layers[il].ffn_up,   NULL, NULL,
-                        model.layers[il].ffn_gate, NULL, NULL,
-                        model.layers[il].ffn_down, NULL, NULL,
-                        NULL,
-                        LLM_FFN_GELU, LLM_FFN_PAR, il);
-                cb(cur, "ffn_out", il);
-
-                ffn_inp = ggml_add(ctx0, cur, ffn_inp);
-                cb(ffn_inp, "ffn_out", il);
-            }
-
             // MoE branch
-            cur = build_moe_ffn(cur,
+            ggml_tensor * moe_out = build_moe_ffn(cur,
                     model.layers[il].ffn_gate_inp,
                     model.layers[il].ffn_up_exps,
                     model.layers[il].ffn_gate_exps,
@@ -7024,7 +7011,22 @@ struct llm_build_grok : public llm_graph_context {
                     false, 0.0,
                     LLAMA_EXPERT_GATING_FUNC_TYPE_SOFTMAX,
                     il);
-            cb(cur, "ffn_moe_out", il);
+            cb(moe_out, "ffn_moe_out", il);
+
+            if (model.layers[il].ffn_up) {
+                ggml_tensor * ffn_out = build_ffn(cur,
+                        model.layers[il].ffn_up,   NULL, NULL,
+                        model.layers[il].ffn_gate, NULL, NULL,
+                        model.layers[il].ffn_down, NULL, NULL,
+                        NULL,
+                        LLM_FFN_GELU, LLM_FFN_PAR, il);
+                cb(ffn_out, "ffn_out", il);
+
+                cur = ggml_scale(ctx0, ggml_add(ctx0, ffn_out, moe_out), M_SQRT2 / 2);
+                cb(cur, "ffn_out", il);
+            } else {
+                cur = moe_out;
+            }
 
             cur = build_norm(cur,
                     model.layers[il].ffn_post_norm, NULL,
