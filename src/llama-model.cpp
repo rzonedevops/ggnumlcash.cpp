@@ -6912,8 +6912,6 @@ struct llm_build_grok : public llm_graph_context {
 
         inpL = build_inp_embd(model.tok_embd);
 
-        inpL = ggml_scale(ctx0, inpL, hparams.f_embedding_scale);
-
         // inp_pos - contains the positions
         ggml_tensor * inp_pos = build_inp_pos();
 
