@@ -136,8 +136,8 @@ struct llama_hparams {
     float f_attention_scale = 0.0f;
 
     // grok-2
-    float f_attn_out_scale  = 0.0f;
-    float f_attn_temp_len   = 0.0f;
+    float    f_attn_out_scale = 0.0f;
+    uint32_t attn_temp_length = 0;
 
     bool causal_attn   = true;
     bool use_alibi     = false;
