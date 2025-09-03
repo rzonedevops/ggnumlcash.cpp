@@ -7127,7 +7127,7 @@ struct llm_build_grok : public llm_graph_context {
                         LLM_FFN_GELU, LLM_FFN_PAR, il);
                 cb(ffn_out, "ffn_out", il);
 
-                cur = ggml_scale(ctx0, ggml_add(ctx0, ffn_out, moe_out), M_SQRT2 / 2);
+                cur = ggml_scale(ctx0, ggml_add(ctx0, ffn_out, moe_out), std::sqrt(2) / 2);
                 cb(cur, "ffn_out", il);
             } else {
                 cur = moe_out;
