@@ -2647,68 +2647,11 @@ class GrokModel(TextModel):
             self._set_vocab_sentencepiece()
             return
 
-        if (self.dir_model / 'tokenizer.json').is_file():
-            self._set_vocab_gpt2()
-            return
+        if not (self.dir_model / 'tokenizer.json').is_file() or not (self.dir_model / 'chat_template.jinja').is_file():
+            logger.error('Error: Missing vocab and chat template, download files from https://huggingface.co/alvarobartt/grok-2-tokenizer')
+            sys.exit(1)
 
-        tokenizer_path = self.dir_model / 'tokenizer.tok.json'
-        with open(tokenizer_path, "r", encoding="utf-8") as f:
-            tokenizer = json.load(f)
-
-        vocab_size = tokenizer["vocab_size"]
-        tokens: list[str] = [f"[PAD{i}]" for i in range(vocab_size)]
-        scores: list[float] = [-10000.0] * vocab_size
-        toktypes: list[int] = [gguf.TokenType.UNUSED] * vocab_size
-
-        def decode_grok_token(token: dict, toktype: gguf.TokenType) -> tuple[gguf.TokenType, int, str]:
-            tokid: int = token["token"]
-            tokb: list[int] = token["bytes"]
-            if tokb == [32]:
-                tokb = [0xe2, 0x96, 0x81]
-            if len(tokb) == 1:
-                return gguf.TokenType.BYTE, tokid, "<0x{:02X}>".format(tokb[0])
-            else:
-                try:
-                    tokc = bytes(tokb).decode("utf-8").replace(" ", "▁")
-                except Exception:
-                    tokc = None
-                if tokc is None or not all(tokb):
-                    # Incomplete UTF-8 sequence or \0 bytes, escape it
-                    # probably doesn't tokenize correctly, but at least won't crash
-                    tokc = repr(bytes(tokb))[2:-1]
-                return toktype, tokid, tokc
-
-        for token in tokenizer["special_tokens"]:
-            toktype, tokid, tokc = decode_grok_token(token, gguf.TokenType.CONTROL)
-            tokens[tokid] = tokc
-            toktypes[tokid] = toktype
-            scores[tokid] = 0.0
-
-        score = -0.0
-        for token in tokenizer["regular_tokens"]:
-            toktype, tokid, tokc = decode_grok_token(token, gguf.TokenType.NORMAL)
-            tokens[tokid] = tokc
-            toktypes[tokid] = toktype
-            if toktype == gguf.TokenType.BYTE:
-                scores[tokid] = 0.0
-            else:
-                scores[tokid] = score
-                score -= 1.0
-
-        self.gguf_writer.add_tokenizer_model("llama")
-        self.gguf_writer.add_tokenizer_pre("default")
-        self.gguf_writer.add_token_list(tokens)
-        self.gguf_writer.add_token_scores(scores)
-        self.gguf_writer.add_token_types(toktypes)
-
-        self.gguf_writer.add_add_bos_token(False)
-
-        special_vocab = gguf.SpecialVocab(self.dir_model, n_vocab=len(tokens))
-        special_vocab.special_token_ids["pad"] = 0
-        special_vocab.special_token_ids["sep"] = 1
-        special_vocab.special_token_ids["eos"] = 2
-        special_vocab.chat_template = "{% for message in messages %}{% if message['role'] == 'user' %}{{ 'Human: ' + message['content'].strip() + '<|separator|>\n\n' }}{% elif message['role'] == 'system' %}{{ 'System: ' + message['content'].strip() + '<|separator|>\n\n' }}{% elif message['role'] == 'assistant' %}{{ 'Assistant: '  + message['content'] + '<|separator|>\n\n' }}{% endif %}{% endfor %}{% if add_generation_prompt %}{{ 'Assistant:' }}{% endif %}"
-        special_vocab.add_to_gguf(self.gguf_writer)
+        self._set_vocab_gpt2()
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
