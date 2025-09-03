@@ -2672,11 +2672,6 @@ class GrokModel(TextModel):
 
         # Treat "original" as "yarn", seems to have been a mistake
         if self.hparams.get("rope_type") in ("yarn", "original"):
-            # config.json values differ from standard, we may have to add metadata for these:
-            # extrapolation_factor = 1.0
-            # attn_factor = 1.0
-            # beta_fast = 8
-            # beta_slow = 1
             self.gguf_writer.add_rope_scaling_type(gguf.RopeScalingType.YARN)
             self.gguf_writer.add_rope_scaling_factor(self.hparams["scaling_factor"])
             self.gguf_writer.add_rope_scaling_orig_ctx_len(self.hparams["original_max_position_embeddings"])
