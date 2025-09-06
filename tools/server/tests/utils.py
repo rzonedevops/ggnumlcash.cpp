@@ -45,7 +45,7 @@ class ServerProcess:
     model_alias: str = "tinyllama-2"
     temperature: float = 0.8
     seed: int = 42
-    offline: bool = True
+    offline: bool = False
 
     # custom options
     model_alias: str | None = None
@@ -424,6 +424,7 @@ class ServerPreset:
     @staticmethod
     def bert_bge_small() -> ServerProcess:
         server = ServerProcess()
+        server.offline = True # will be downloaded by load_all()
         server.model_hf_repo = "ggml-org/models"
         server.model_hf_file = "bert-bge-small/ggml-model-f16.gguf"
         server.model_alias = "bert-bge-small"
@@ -438,6 +439,7 @@ class ServerPreset:
     @staticmethod
     def bert_bge_small_with_fa() -> ServerProcess:
         server = ServerProcess()
+        server.offline = True # will be downloaded by load_all()
         server.model_hf_repo = "ggml-org/models"
         server.model_hf_file = "bert-bge-small/ggml-model-f16.gguf"
         server.model_alias = "bert-bge-small"
@@ -453,6 +455,7 @@ class ServerPreset:
     @staticmethod
     def tinyllama_infill() -> ServerProcess:
         server = ServerProcess()
+        server.offline = True # will be downloaded by load_all()
         server.model_hf_repo = "ggml-org/models"
         server.model_hf_file = "tinyllamas/stories260K-infill.gguf"
         server.model_alias = "tinyllama-infill"
@@ -467,6 +470,7 @@ class ServerPreset:
     @staticmethod
     def stories15m_moe() -> ServerProcess:
         server = ServerProcess()
+        server.offline = True # will be downloaded by load_all()
         server.model_hf_repo = "ggml-org/stories15M_MOE"
         server.model_hf_file = "stories15M_MOE-F16.gguf"
         server.model_alias = "stories15m-moe"
@@ -481,6 +485,7 @@ class ServerPreset:
     @staticmethod
     def jina_reranker_tiny() -> ServerProcess:
         server = ServerProcess()
+        server.offline = True # will be downloaded by load_all()
         server.model_hf_repo = "ggml-org/models"
         server.model_hf_file = "jina-reranker-v1-tiny-en/ggml-model-f16.gguf"
         server.model_alias = "jina-reranker"
@@ -494,6 +499,7 @@ class ServerPreset:
     @staticmethod
     def tinygemma3() -> ServerProcess:
         server = ServerProcess()
+        server.offline = True # will be downloaded by load_all()
         # mmproj is already provided by HF registry API
         server.model_hf_repo = "ggml-org/tinygemma3-GGUF"
         server.model_hf_file = "tinygemma3-Q8_0.gguf"
