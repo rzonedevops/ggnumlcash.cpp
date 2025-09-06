@@ -12,7 +12,7 @@ from enum import Enum
 
 server: ServerProcess
 
-TIMEOUT_START_SLOW = 15*60 # this is needed for real model tests
+TIMEOUT_START_SLOW = 15 * 60 # this is needed for real model tests
 TIMEOUT_HTTP_REQUEST = 60
 
 @pytest.fixture(autouse=True)

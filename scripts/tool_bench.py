@@ -335,7 +335,7 @@ def run(
                     # server.debug = True
 
                     with scoped_server(server):
-                        server.start(timeout_seconds=15*60)
+                        server.start(timeout_seconds=15 * 60)
                         for ignore_chat_grammar in [False]:
                             run(
                                 server,
