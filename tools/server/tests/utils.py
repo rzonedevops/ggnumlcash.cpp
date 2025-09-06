@@ -45,6 +45,7 @@ class ServerProcess:
     model_alias: str = "tinyllama-2"
     temperature: float = 0.8
     seed: int = 42
+    offline: bool = True
 
     # custom options
     model_alias: str | None = None
@@ -118,6 +119,8 @@ class ServerProcess:
             "--seed",
             self.seed,
         ]
+        if self.offline:
+            server_args.append("--offline")
         if self.model_file:
             server_args.extend(["--model", self.model_file])
         if self.model_url:
@@ -392,6 +395,19 @@ server_instances: Set[ServerProcess] = set()
 
 
 class ServerPreset:
+    @staticmethod
+    def load_all() -> None:
+        """ Load all server presets to ensure model files are cached. """
+        servers: List[ServerProcess] = [
+            method()
+            for name, method in ServerPreset.__dict__.items()
+            if callable(method) and name != "load_all"
+        ]
+        for server in servers:
+            server.offline = False
+            server.start()
+            server.stop()
+
     @staticmethod
     def tinyllama2() -> ServerProcess:
         server = ServerProcess()
