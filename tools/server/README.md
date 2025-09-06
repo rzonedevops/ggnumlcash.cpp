@@ -1278,6 +1278,34 @@ curl http://localhost:8080/v1/chat/completions \
 
 **See our [Function calling](../../docs/function-calling.md) docs** for more details, supported native tool call styles (generic tool call style is used as fallback) / examples of use.
 
+*Timings and context usage*
+
+The response contains a `timings` object, for example:
+
+```js
+{
+  "choices": [],
+  "created": 1757141666,
+  "id": "chatcmpl-ecQULm0WqPrftUqjPZO1CFYeDjGZNbDu",
+  // ...
+  "timings": {
+    "cache_n": 236, // number of prompt tokens reused from cache
+    "prompt_n": 1, // number of prompt tokens being processed
+    "prompt_ms": 30.958,
+    "prompt_per_token_ms": 30.958,
+    "prompt_per_second": 32.301828283480845,
+    "predicted_n": 35, // number of predicted tokens
+    "predicted_ms": 661.064,
+    "predicted_per_token_ms": 18.887542857142858,
+    "predicted_per_second": 52.94494935437416
+  }
+}
+```
+
+This provides information on the performance of the server. It also allows calculating the current context usage.
+
+The total number of tokens in context is equal to `prompt_n + cache_n + predicted_n`
+
 ### POST `/v1/embeddings`: OpenAI-compatible embeddings API
 
 This endpoint requires that the model uses a pooling different than type `none`. The embeddings are normalized using the Eucledian norm.
