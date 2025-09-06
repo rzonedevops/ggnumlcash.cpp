@@ -653,12 +653,14 @@ struct result_prompt_progress {
     int32_t total = 0;
     int32_t cache = 0;
     int32_t processed = 0;
+    int64_t time_ms = 0;
 
     json to_json() const {
         return json {
             {"total",     total},
             {"cache",     cache},
             {"processed", processed},
+            {"time_ms",   time_ms},
         };
     }
 };
@@ -2759,6 +2761,7 @@ struct server_context {
             res->progress.total     = slot.n_prompt_tokens;
             res->progress.cache     = slot.n_prompt_tokens_cache;
             res->progress.processed = slot.cache_tokens.size();
+            res->progress.time_ms   = ggml_time_ms() - (slot.t_start_process_prompt / 1000);
         } else {
             res->content = tkn.text_to_send;
             res->tokens  = { tkn.tok };
