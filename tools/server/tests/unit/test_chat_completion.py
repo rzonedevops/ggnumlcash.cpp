@@ -407,13 +407,15 @@ def test_context_size_exceeded():
 @pytest.mark.parametrize(
     "n_batch,batch_count,reuse_cache",
     [
-        (64, 4, False),
+        (64, 15, False),
         (64, 1, True),
     ]
 )
-def test_return_progress(n_batch, batch_count, reuse_cache):
+def test_return_progresssss(n_batch, batch_count, reuse_cache):
     global server
     server.n_batch = n_batch
+    server.n_ctx = 2048
+    server.n_slots = 1
     server.start()
     def make_cmpl_request():
         return server.make_stream_request("POST", "/chat/completions", data={
@@ -441,7 +443,7 @@ def test_return_progress(n_batch, batch_count, reuse_cache):
             assert cur_progress["total"] == last_progress["total"]
             assert cur_progress["cache"] == last_progress["cache"]
             assert cur_progress["processed"] > last_progress["processed"]
-            total_batch_count += 1
+        total_batch_count += 1
         last_progress = cur_progress
 
     assert last_progress is not None
