@@ -609,6 +609,8 @@ struct server_task {
 };
 
 struct result_timings {
+    int32_t cache_n = -1;
+
     int32_t prompt_n = -1;
     double prompt_ms;
     double prompt_per_token_ms;
@@ -625,6 +627,8 @@ struct result_timings {
 
     json to_json() const {
         json base = {
+            {"cache_n",                cache_n},
+
             {"prompt_n",               prompt_n},
             {"prompt_ms",              prompt_ms},
             {"prompt_per_token_ms",    prompt_per_token_ms},
@@ -1577,6 +1581,8 @@ struct server_slot {
 
     result_timings get_timings() const {
         result_timings timings;
+        timings.cache_n = n_prompt_tokens_cache;
+
         timings.prompt_n = n_prompt_tokens_processed;
         timings.prompt_ms = t_prompt_processing;
         timings.prompt_per_token_ms = t_prompt_processing / n_prompt_tokens_processed;
