@@ -6743,8 +6743,9 @@ static bool ggml_backend_metal_device_supports_buft(ggml_backend_dev_t dev, ggml
 static int64_t get_op_batch_size(const struct ggml_tensor * op) {
     switch (op->op) {
         case GGML_OP_MUL_MAT:
-        case GGML_OP_MUL_MAT_ID:
             return op->ne[1];
+        case GGML_OP_MUL_MAT_ID:
+            return op->ne[2];
         default:
             return ggml_nrows(op);
     }
