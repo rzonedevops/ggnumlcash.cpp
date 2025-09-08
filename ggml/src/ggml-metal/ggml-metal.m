@@ -1684,6 +1684,7 @@ static void ggml_metal_free(struct ggml_backend_metal_context * ctx) {
         ggml_metal_mem_pool_free(ctx->cmd_bufs[i].mem_pool);
     }
 
+    [ctx->cmd_bufs_ext removeAllObjects];
     [ctx->cmd_bufs_ext release];
 
     dispatch_release(ctx->d_queue);
@@ -5793,30 +5794,40 @@ static enum ggml_status ggml_metal_graph_compute(
             }
         }
 
-        // wait for any previous processing
+        // the main thread commits the first few commands immediately
+        // cmd_buf[n_cb]
+        {
+            // first wait for any previous command buffer to be completed
+            // note: this checks only yhat the first part of the previous graph has been computed
+            //       the rest of the graph might still be computing, but it is Ok to start queuing the beginning of the
+            ///      new graph
+            if (ctx->cmd_bufs[n_cb].obj) {
+                [ctx->cmd_bufs[n_cb].obj waitUntilCompleted];
+                [ctx->cmd_bufs[n_cb].obj release];
+            }
+
+            id<MTLCommandBuffer> cmd_buf = [ctx->queue commandBuffer];
+            [cmd_buf retain];
+
+            ctx->cmd_bufs[n_cb].obj = cmd_buf;
+
+            [cmd_buf enqueue];
+
+            ctx->encode_async(n_cb);
+        }
+
+        // here we guarantee the full previous graph has finished computing
+        // but note that we have already enqueued the first part of the new graph so it can start processing, while
+        //   continue to encode the rest of the graph
         if (ctx->cmd_buf_last) {
             [ctx->cmd_buf_last waitUntilCompleted];
             ctx->cmd_buf_last = nil;
         }
 
-        // the main thread commits the first few commands immediately
-        // cmd_buf[n_cb]
-        {
-            id<MTLCommandBuffer> cmd_buf = [ctx->queue commandBuffer];
-            [cmd_buf retain];
+        // remember the command buffer for the next iteration
+        ctx->cmd_buf_last = ctx->cmd_bufs[n_cb].obj;
 
-            if (ctx->cmd_bufs[n_cb].obj) {
-                [ctx->cmd_bufs[n_cb].obj release];
-            }
-            ctx->cmd_bufs[n_cb].obj = cmd_buf;
-
-            [cmd_buf enqueue];
-            ctx->cmd_buf_last = cmd_buf;
-
-            ctx->encode_async(n_cb);
-        }
-
-        // prepare the rest of the command buffers asynchronously
+        // prepare the rest of the command buffers asynchronously (optional)
         // cmd_buf[0.. n_cb)
         for (int cb_idx = 0; cb_idx < n_cb; ++cb_idx) {
             id<MTLCommandBuffer> cmd_buf = [ctx->queue commandBuffer];
@@ -5831,6 +5842,9 @@ static enum ggml_status ggml_metal_graph_compute(
             // enqueue all of the command buffers if we don't need to abort
             if (cb_idx < 2 || ctx->abort_callback == NULL) {
                 [cmd_buf enqueue];
+
+                // update the pointer to the last queued command buffer
+                // this is needed to implement synchronize()
                 ctx->cmd_buf_last = cmd_buf;
             }
         }
@@ -6078,6 +6092,12 @@ static size_t ggml_backend_metal_buffer_type_get_max_size(ggml_backend_buffer_ty
 }
 
 static bool ggml_backend_metal_buffer_type_is_host(ggml_backend_buffer_type_t buft) {
+    // TODO: not sure why, but without setting this to `false`, op offloading does not work correctly
+    //       to reproduce, do the following:
+    //
+    //   build with: cmake -DGGML_BLAS=OFF -DGGML_METAL=ON
+    //   run:        ./bin/llama-cli -m ggml-model-mxfp4.gguf -p "$(printf 'hello %.0s' {1..100})" --n-cpu-moe 10
+    //
     return false;
 
     GGML_UNUSED(buft);
@@ -6231,33 +6251,37 @@ static void ggml_backend_metal_free(ggml_backend_t backend) {
 static void ggml_backend_metal_synchronize(ggml_backend_t backend) {
     struct ggml_backend_metal_context * ctx = backend->context;
 
+    // wait for the computation of the graph to finish
     if (ctx->cmd_buf_last) {
         [ctx->cmd_buf_last waitUntilCompleted];
         ctx->cmd_buf_last = nil;
     }
 
+    // wait for any pending async get/set operations
     if (ctx->cmd_buf_ext_last) {
         [ctx->cmd_buf_ext_last waitUntilCompleted];
         ctx->cmd_buf_ext_last = nil;
     }
 
-    for (size_t i = 0; i < ctx->cmd_bufs_ext.count; ++i) {
-        id<MTLCommandBuffer> cmd_buf = ctx->cmd_bufs_ext[i];
+    // release any completed command buffers
+    if (ctx->cmd_bufs_ext.count > 0) {
+        for (size_t i = 0; i < ctx->cmd_bufs_ext.count; ++i) {
+            id<MTLCommandBuffer> cmd_buf = ctx->cmd_bufs_ext[i];
 
-        // check status and assert that the command buffer completed successfully
-        MTLCommandBufferStatus status = [cmd_buf status];
-        if (status != MTLCommandBufferStatusCompleted) {
-            GGML_LOG_ERROR("%s: error: command buffer %d failed with status %d\n", __func__, (int) i, (int) status);
-            if (status == MTLCommandBufferStatusError) {
-                GGML_LOG_ERROR("error: %s\n", [[cmd_buf error].localizedDescription UTF8String]);
+            MTLCommandBufferStatus status = [cmd_buf status];
+            if (status != MTLCommandBufferStatusCompleted) {
+                GGML_LOG_ERROR("%s: error: command buffer %d failed with status %d\n", __func__, (int) i, (int) status);
+                if (status == MTLCommandBufferStatusError) {
+                    GGML_LOG_ERROR("error: %s\n", [[cmd_buf error].localizedDescription UTF8String]);
+                }
+                GGML_ABORT("fatal error");
             }
-            GGML_ABORT("fatal error");
+
+            [cmd_buf release];
         }
 
-        //printf("releasing buffer %d\n", (int) i);
-        [cmd_buf release];
+        [ctx->cmd_bufs_ext removeAllObjects];
     }
-    [ctx->cmd_bufs_ext removeAllObjects];
 }
 
 static void ggml_backend_metal_set_tensor_async(ggml_backend_t backend,       struct ggml_tensor * tensor, const void * data, size_t offset, size_t size) {
@@ -6271,13 +6295,14 @@ static void ggml_backend_metal_set_tensor_async(ggml_backend_t backend,       st
     @autoreleasepool {
         id<MTLDevice> device = ctx_dev->mtl_device;
 
+        // wrap the source data into a Metal buffer
         id<MTLBuffer> buf_src = [device newBufferWithBytes:data
                                                     length:size
                                                    options:MTLResourceStorageModeShared];
 
         size_t tensor_offset = (uintptr_t)tensor->data + offset;
 
-        // find which buffer contains this tensor
+        // find which Metal buffer contains this tensor - we will copy into that buffer
         for (int i = 0; i < buf_ctx->n_buffers; i++) {
             if (tensor_offset >= (uintptr_t) buf_ctx->buffers[i].data &&
                 tensor_offset <  (uintptr_t) buf_ctx->buffers[i].data + buf_ctx->buffers[i].size) {
@@ -6286,6 +6311,8 @@ static void ggml_backend_metal_set_tensor_async(ggml_backend_t backend,       st
 
                 id<MTLBuffer> buf_dst = buf_ctx->buffers[i].metal;
 
+                // queue the copy operation into the queue of the Metal context
+                // this will be queued at the end, after any currently ongoing GPU operations
                 id<MTLCommandBuffer> cmd_buf = [ctx->queue commandBuffer];
                 [cmd_buf enqueue];
 
@@ -6299,8 +6326,11 @@ static void ggml_backend_metal_set_tensor_async(ggml_backend_t backend,       st
 
                 [encoder endEncoding];
                 [cmd_buf commit];
+
+                // do not wait here for completion
               //[cmd_buf waitUntilCompleted];
 
+                // instead, remember a reference to the command buffer and wait for it later if needed
                 [ctx->cmd_bufs_ext addObject:cmd_buf];
                 ctx->cmd_buf_ext_last = cmd_buf;
 
@@ -6712,6 +6742,7 @@ static bool ggml_backend_metal_device_supports_buft(ggml_backend_dev_t dev, ggml
 
 static int64_t get_op_batch_size(const struct ggml_tensor * op) {
     switch (op->op) {
+        case GGML_OP_MUL_MAT:
         case GGML_OP_MUL_MAT_ID:
             return op->ne[1];
         default:
@@ -6722,8 +6753,9 @@ static int64_t get_op_batch_size(const struct ggml_tensor * op) {
 static bool ggml_backend_metal_device_offload_op(ggml_backend_dev_t dev, const struct ggml_tensor * op) {
     const int min_batch_size = 32;
 
-    return get_op_batch_size(op) >= min_batch_size;
-    //return false;
+    return (op->op == GGML_OP_MUL_MAT ||
+            op->op == GGML_OP_MUL_MAT_ID) &&
+            get_op_batch_size(op) >= min_batch_size;
 
     GGML_UNUSED(dev);
     GGML_UNUSED(op);
