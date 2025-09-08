@@ -18647,7 +18647,7 @@ struct llm_build_grovemoe : public llm_graph_context {
         // inp_pos - contains the positions
         ggml_tensor * inp_pos = build_inp_pos();
 
-        auto * inp_attn = build_attn_inp_kv_unified();
+        auto * inp_attn = build_attn_inp_kv();
 
         ggml_tensor * inp_out_ids = build_inp_out_ids();
 
