@@ -44,10 +44,9 @@ static struct ggml_backend_device g_ggml_backend_metal_device;
 // note: assumes single GPU device - the default one
 // TODO: support multiple GPU devices
 static struct ggml_backend_metal_device_context {
-    id<MTLDevice>       mtl_device;
-    int                 mtl_device_ref_count;
-    id<MTLCommandQueue> mtl_queue;
-    id<MTLLibrary>      mtl_library;
+    id<MTLDevice>  mtl_device;
+    int            mtl_device_ref_count;
+    id<MTLLibrary> mtl_library;
 
     NSLock * mtl_lock;
 
@@ -69,7 +68,6 @@ static struct ggml_backend_metal_device_context {
 } g_ggml_ctx_dev_main = {
     /*.mtl_device              =*/ nil,
     /*.mtl_device_ref_count    =*/ 0,
-    /*.mtl_queue               =*/ nil,
     /*.mtl_library             =*/ nil,
     /*.mtl_lock                =*/ nil,
     /*.has_simdgroup_reduction =*/ false,
@@ -96,9 +94,6 @@ static id<MTLDevice> ggml_backend_metal_device_acq(struct ggml_backend_metal_dev
         ctx->mtl_device = MTLCreateSystemDefaultDevice();
 
         if (ctx->mtl_device) {
-            ctx->mtl_queue = [ctx->mtl_device newCommandQueue];
-            [ctx->mtl_queue retain];
-
             ctx->has_simdgroup_reduction  = [ctx->mtl_device supportsFamily:MTLGPUFamilyApple7];
             ctx->has_simdgroup_reduction |= [ctx->mtl_device supportsFamily:MTLGPUFamilyMetal3_GGML];
 
@@ -164,11 +159,6 @@ static void ggml_backend_metal_device_rel(struct ggml_backend_metal_device_conte
         if (ctx->mtl_library) {
             [ctx->mtl_library release];
             ctx->mtl_library = nil;
-        }
-
-        if (ctx->mtl_queue) {
-            [ctx->mtl_queue release];
-            ctx->mtl_queue = nil;
         }
 
         if (ctx->mtl_device) {
@@ -1013,7 +1003,7 @@ static struct ggml_backend_metal_context * ggml_metal_init(ggml_backend_dev_t de
     GGML_LOG_INFO("%s: picking default device: %s\n", __func__, [[device name] UTF8String]);
 
     ctx->device = device;
-    ctx->queue = ctx_dev->mtl_queue;
+    ctx->queue = [device newCommandQueue];
     if (ctx->queue == nil) {
         GGML_LOG_ERROR("%s: error: failed to create command queue\n", __func__);
         return NULL;
@@ -1719,7 +1709,6 @@ struct ggml_backend_metal_buffer_context {
     id rset;
 
     id device;
-    id queue;
 };
 
 // rset init
@@ -5882,7 +5871,8 @@ static void ggml_backend_metal_buffer_memset_tensor(ggml_backend_buffer_t buffer
     struct ggml_backend_metal_buffer_context * ctx = (struct ggml_backend_metal_buffer_context *)buffer->context;
 
     @autoreleasepool {
-        id<MTLCommandBuffer>      cmd_buf = [ctx->queue commandBuffer];
+        id<MTLCommandQueue>       queue   = [ctx->device newCommandQueue];
+        id<MTLCommandBuffer>      cmd_buf = [queue commandBuffer];
         id<MTLBlitCommandEncoder> encoder = [cmd_buf blitCommandEncoder];
         [cmd_buf enqueue];
 
@@ -5899,6 +5889,10 @@ static void ggml_backend_metal_buffer_memset_tensor(ggml_backend_buffer_t buffer
 
         [cmd_buf commit];
         [cmd_buf waitUntilCompleted];
+
+        // note: not sure why this release is necessary as we are inside an autoreleasepool block
+        //       but without it, we get "Context leak detected" warnings
+        [queue release];
     }
 #else
     memset((char *)tensor->data + offset, value, size);
@@ -5912,7 +5906,8 @@ static void ggml_backend_metal_buffer_set_tensor(ggml_backend_buffer_t buffer, s
     struct ggml_backend_metal_buffer_context * ctx = (struct ggml_backend_metal_buffer_context *)buffer->context;
 
     @autoreleasepool {
-        id<MTLCommandBuffer>      cmd_buf = [ctx->queue commandBuffer];
+        id<MTLCommandQueue>       queue   = [ctx->device newCommandQueue];
+        id<MTLCommandBuffer>      cmd_buf = [queue commandBuffer];
         id<MTLBlitCommandEncoder> encoder = [cmd_buf blitCommandEncoder];
         [cmd_buf enqueue];
 
@@ -5936,6 +5931,8 @@ static void ggml_backend_metal_buffer_set_tensor(ggml_backend_buffer_t buffer, s
 
         [cmd_buf commit];
         [cmd_buf waitUntilCompleted];
+
+        [queue release];
     }
 #else
     memcpy((char *)tensor->data + offset, data, size);
@@ -5949,7 +5946,8 @@ static void ggml_backend_metal_buffer_get_tensor(ggml_backend_buffer_t buffer, c
     struct ggml_backend_metal_buffer_context * ctx = (struct ggml_backend_metal_buffer_context *)buffer->context;
 
     @autoreleasepool {
-        id<MTLCommandBuffer>      cmd_buf = [ctx->queue commandBuffer];
+        id<MTLCommandQueue>       queue   = [ctx->device newCommandQueue];
+        id<MTLCommandBuffer>      cmd_buf = [queue commandBuffer];
         id<MTLBlitCommandEncoder> encoder = [cmd_buf blitCommandEncoder];
         [cmd_buf enqueue];
 
@@ -5973,6 +5971,8 @@ static void ggml_backend_metal_buffer_get_tensor(ggml_backend_buffer_t buffer, c
 
         [cmd_buf commit];
         [cmd_buf waitUntilCompleted];
+
+        [queue release];
     }
 #else
     memcpy(data, (const char *)tensor->data + offset, size);
@@ -5993,10 +5993,12 @@ static bool ggml_backend_metal_buffer_cpy_tensor(ggml_backend_buffer_t buffer, c
 }
 
 static void ggml_backend_metal_buffer_clear(ggml_backend_buffer_t buffer, uint8_t value) {
+#if 1
     struct ggml_backend_metal_buffer_context * ctx = (struct ggml_backend_metal_buffer_context *)buffer->context;
 
     @autoreleasepool {
-        id<MTLCommandBuffer>      cmd_buf = [ctx->queue commandBuffer];
+        id<MTLCommandQueue>       queue   = [ctx->device newCommandQueue];
+        id<MTLCommandBuffer>      cmd_buf = [queue commandBuffer];
         id<MTLBlitCommandEncoder> encoder = [cmd_buf blitCommandEncoder];
         [cmd_buf enqueue];
 
@@ -6008,9 +6010,12 @@ static void ggml_backend_metal_buffer_clear(ggml_backend_buffer_t buffer, uint8_
 
         [cmd_buf commit];
         [cmd_buf waitUntilCompleted];
-    }
 
-    //memset(ctx->all_data, value, ctx->all_size);
+        [queue release];
+    }
+#else
+    memset(ctx->all_data, value, ctx->all_size);
+#endif
 }
 
 static struct ggml_backend_buffer_i ggml_backend_metal_buffer_i = {
@@ -6075,30 +6080,26 @@ static ggml_backend_buffer_t ggml_backend_metal_buffer_type_alloc_buffer(ggml_ba
     id<MTLDevice> device = ctx_dev->mtl_device;
 
 #if 1
-    // TODO: tmp hack
-    static void * p_base = (void *) 0x000000400ULL;
-
-    ctx->all_data = p_base;
-
-    p_base = (void *) ((uintptr_t) p_base + size_aligned);
+    // we'll populate this after creating the Metal buffer below
+    ctx->all_data = (void *) 0x000000400ULL;
 #else
     ctx->all_data = ggml_metal_host_malloc(size_aligned);
 #endif
     ctx->all_size = size_aligned;
 
     ctx->device = device;
-    ctx->queue = ctx_dev->mtl_queue;
 
     ctx->n_buffers = 1;
 
     if (ctx->all_data != NULL) {
-        ctx->buffers[0].data  = ctx->all_data;
         ctx->buffers[0].size  = size;
         ctx->buffers[0].metal = nil;
 
         if (size_aligned > 0) {
 #if 1
             ctx->buffers[0].metal = [device newBufferWithLength:size_aligned options:MTLResourceStorageModePrivate];
+
+            ctx->all_data = (void *) (ctx->buffers[0].metal.gpuAddress);
 #else
             ctx->buffers[0].metal = [device newBufferWithBytesNoCopy:ctx->all_data
                                             length:size_aligned
@@ -6106,6 +6107,8 @@ static ggml_backend_buffer_t ggml_backend_metal_buffer_type_alloc_buffer(ggml_ba
                                             deallocator:nil];
 #endif
         }
+
+        ctx->buffers[0].data = ctx->all_data;
     }
 
     if (size_aligned > 0 && (ctx->all_data == NULL || ctx->buffers[0].metal == nil)) {
@@ -6167,6 +6170,8 @@ static const char * ggml_backend_metal_buffer_from_ptr_type_get_name(ggml_backen
 }
 
 static ggml_backend_buffer_type_t ggml_backend_metal_buffer_from_ptr_type(void) {
+    // note: not obvious, but this buffer type still needs to implement .alloc_buffer:
+    //       https://github.com/ggml-org/llama.cpp/pull/15832#discussion_r2333177099
     static struct ggml_backend_buffer_type ggml_backend_buffer_from_ptr_type_metal = {
         /* .iface = */ {
             /* .get_name         = */ ggml_backend_metal_buffer_from_ptr_type_get_name,
@@ -6601,7 +6606,6 @@ static ggml_backend_buffer_t ggml_backend_metal_device_buffer_from_ptr(ggml_back
     id<MTLDevice> device = ctx_dev->mtl_device;
 
     ctx->device = device;
-    ctx->queue = ctx_dev->mtl_queue;
 
     // the buffer fits into the max buffer size allowed by the device
     if (size_aligned <= device.maxBufferLength) {
