@@ -6246,7 +6246,7 @@ static ggml_backend_buffer_type_t ggml_backend_metal_buffer_from_ptr_type(void) 
     static struct ggml_backend_buffer_type ggml_backend_buffer_from_ptr_type_metal = {
         /* .iface = */ {
             /* .get_name         = */ ggml_backend_metal_buffer_from_ptr_type_get_name,
-            /* .alloc_buffer     = */ NULL,
+            /* .alloc_buffer     = */ ggml_backend_metal_buffer_type_alloc_buffer,
             /* .get_alignment    = */ ggml_backend_metal_buffer_type_get_alignment,
             /* .get_max_size     = */ ggml_backend_metal_buffer_type_get_max_size,
             /* .get_alloc_size   = */ NULL, // defaults to ggml_nbytes
