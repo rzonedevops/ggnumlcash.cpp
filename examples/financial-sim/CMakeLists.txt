@@ -1,0 +1,10 @@
+set(TARGET llama-financial-sim)
+add_executable(${TARGET} financial-sim.cpp)
+install(TARGETS ${TARGET} RUNTIME)
+target_link_libraries(${TARGET} PRIVATE common llama ${CMAKE_THREAD_LIBS_INIT})
+target_compile_features(${TARGET} PRIVATE cxx_std_17)
+
+# Test for financial logic (no model required)
+set(TEST_TARGET test-financial-logic)
+add_executable(${TEST_TARGET} test-financial-logic.cpp)
+target_compile_features(${TEST_TARGET} PRIVATE cxx_std_17)
