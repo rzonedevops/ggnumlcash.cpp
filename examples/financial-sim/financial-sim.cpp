@@ -223,6 +223,15 @@ public:
         return ss.str();
     }
     
+    double get_balance(const std::string& code) const {
+        auto it = accounts.find(code);
+        return (it != accounts.end()) ? it->second.balance : 0.0;
+    }
+    
+    size_t get_transaction_count() const {
+        return transaction_log.size();
+    }
+    
 private:
     void print_account_tree(std::stringstream& ss, const std::string& account_code, int depth) const {
         auto it = accounts.find(account_code);
@@ -262,7 +271,6 @@ private:
             case AccountType::LIABILITY: return "Liability (Output/Buffer)";
             case AccountType::EQUITY: return "Equity (Core Processing)";
             case AccountType::REVENUE: return "Revenue (Signal Source)";
-            case AccountType::EXPENSE: return "Expense (Signal Sink)";
             default: return "Unknown";
         }
     }
@@ -366,9 +374,20 @@ public:
         return true;
     }
     
+    void initialize_coa_only() {
+        // Initialize just the chart of accounts without LLM
+        coa.initialize_standard_coa();
+        std::cout << "Financial Circuit initialized (CoA only - no LLM)\n";
+        std::cout << "Hardware architecture loaded with standard Chart of Accounts.\n\n";
+    }
+    
     ~FinancialSimulator() {
         if (ctx) llama_free(ctx);
         if (model) llama_model_free(model);
+    }
+    
+    ChartOfAccounts& get_coa() {
+        return coa;
     }
     
     void run_interactive_simulation() {
@@ -377,9 +396,12 @@ public:
         std::cout << "  balance-sheet    - Show current circuit state\n";
         std::cout << "  income-statement - Show signal flow analysis\n";
         std::cout << "  transaction      - Process a new signal routing\n";
+        std::cout << "  quick-demo       - Run quick demo transactions\n";
         std::cout << "  analyze [query]  - Analyze circuit using LLM\n";
         std::cout << "  trace [tx_id]    - Trace specific transaction\n";
         std::cout << "  validate         - Validate circuit integrity\n";
+        std::cout << "  accounts         - List all account nodes\n";
+        std::cout << "  reset            - Reset circuit to initial state\n";
         std::cout << "  quit             - Exit simulator\n\n";
         
         std::string input;
@@ -395,13 +417,19 @@ public:
                 std::cout << coa.generate_income_statement() << std::endl;
             } else if (input == "transaction") {
                 process_interactive_transaction();
+            } else if (input == "quick-demo") {
+                run_quick_demo();
             } else if (input.substr(0, 7) == "analyze") {
                 std::string query = input.length() > 8 ? input.substr(8) : "Analyze the current financial circuit state";
                 analyze_with_llm(query);
             } else if (input == "validate") {
                 validate_circuit_with_llm();
+            } else if (input == "accounts") {
+                list_all_accounts();
+            } else if (input == "reset") {
+                reset_circuit();
             } else if (input == "help") {
-                std::cout << "Available commands: balance-sheet, income-statement, transaction, analyze, validate, quit\n";
+                std::cout << "Available commands: balance-sheet, income-statement, transaction, quick-demo, analyze, validate, accounts, reset, quit\n";
             } else {
                 std::cout << "Unknown command. Type 'help' for available commands.\n";
             }
@@ -514,14 +542,182 @@ private:
         
         llama_sampler_free(sampler);
     }
+    
+    void run_quick_demo() {
+        std::cout << "Running quick demonstration scenario...\n\n";
+        
+        // Simple investment and revenue scenario
+        Transaction investment;
+        investment.id = "QUICK-001";
+        investment.description = "Owner investment - power injection";
+        investment.entries = {
+            {"1101", 10000.0, 0.0, "Cash injection"},
+            {"3100", 0.0, 10000.0, "Owner's equity"}
+        };
+        
+        if (coa.process_transaction(investment)) {
+            std::cout << "✓ Investment transaction completed\n";
+        }
+        
+        Transaction revenue;
+        revenue.id = "QUICK-002";
+        revenue.description = "Service revenue - signal generation";
+        revenue.entries = {
+            {"1101", 2500.0, 0.0, "Cash received"},
+            {"4100", 0.0, 2500.0, "Service revenue"}
+        };
+        
+        if (coa.process_transaction(revenue)) {
+            std::cout << "✓ Revenue transaction completed\n";
+        }
+        
+        std::cout << "\nQuick demo completed! Check balance-sheet to see results.\n";
+    }
+    
+    void list_all_accounts() {
+        std::cout << "=== FINANCIAL CIRCUIT NODE DIRECTORY ===\n";
+        std::cout << "Available account nodes:\n";
+        std::cout << "Asset Subsystem:\n";
+        std::cout << "  1101 - Cash (Primary storage node)\n";
+        std::cout << "  1102 - Accounts Receivable (Pending input buffer)\n";
+        std::cout << "  1103 - Inventory (Material buffer)\n";
+        std::cout << "  1201 - Equipment (Processing equipment)\n";
+        std::cout << "  1202 - Buildings (Infrastructure)\n";
+        std::cout << "Liability Subsystem:\n";
+        std::cout << "  2101 - Accounts Payable (Output queue)\n";
+        std::cout << "  2102 - Short-term Loans (Temporary power)\n";
+        std::cout << "  2201 - Long-term Loans (Extended power)\n";
+        std::cout << "Equity Subsystem:\n";
+        std::cout << "  3100 - Owner's Equity (Control processor)\n";
+        std::cout << "  3200 - Retained Earnings (Gain storage)\n";
+        std::cout << "Revenue Subsystem:\n";
+        std::cout << "  4100 - Sales Revenue (Primary generator)\n";
+        std::cout << "  4200 - Service Revenue (Secondary generator)\n";
+        std::cout << "Expense Subsystem:\n";
+        std::cout << "  5101 - Salaries Expense (HR consumption)\n";
+        std::cout << "  5102 - Rent Expense (Infrastructure consumption)\n";
+        std::cout << "  5103 - Utilities Expense (Utility consumption)\n";
+    }
+    
+    void reset_circuit() {
+        coa = ChartOfAccounts(); // Reset to fresh state
+        coa.initialize_standard_coa();
+        std::cout << "Circuit reset to initial state. All signal levels zeroed.\n";
+    }
 };
 
 // Demo transactions for testing
-void run_demo_scenario(FinancialSimulator& /* sim */) {
+void run_demo_scenario(FinancialSimulator& sim) {
     std::cout << "Running demo financial circuit scenario...\n\n";
     
-    // Demo transactions will be processed here
-    // This would be called if --demo flag is provided
+    // Demo transactions that showcase the hardware analogy
+    std::cout << "=== FINANCIAL CIRCUIT DEMO SCENARIO ===\n";
+    std::cout << "Simulating a small business financial circuit...\n\n";
+    
+    // Get access to the CoA for demonstration
+    auto& coa = sim.get_coa();
+    
+    std::cout << "1. INITIAL CIRCUIT STATE:\n";
+    std::cout << coa.generate_balance_sheet() << "\n";
+    
+    // Transaction 1: Owner investment (power injection)
+    std::cout << "2. POWER INJECTION - Owner Investment:\n";
+    Transaction investment;
+    investment.id = "DEMO-001";
+    investment.description = "Initial capital injection into the financial circuit";
+    investment.entries = {
+        {"1101", 50000.0, 0.0, "Cash injection at primary input node"},
+        {"3100", 0.0, 50000.0, "Power source registration in core processing unit"}
+    };
+    
+    if (coa.process_transaction(investment)) {
+        std::cout << "✓ Signal routing completed - $50,000 injected into circuit\n";
+        std::cout << coa.trace_transaction_path(investment) << "\n";
+    }
+    
+    // Transaction 2: Equipment purchase (internal routing)
+    std::cout << "3. INTERNAL SIGNAL ROUTING - Equipment Purchase:\n";
+    coa.add_account("1201", "Office Equipment", AccountType::ASSET, "1200");
+    Transaction equipment;
+    equipment.id = "DEMO-002";
+    equipment.description = "Internal circuit reconfiguration - asset transformation";
+    equipment.entries = {
+        {"1201", 15000.0, 0.0, "Equipment node activation"},
+        {"1101", 0.0, 15000.0, "Cash node signal reduction"}
+    };
+    
+    if (coa.process_transaction(equipment)) {
+        std::cout << "✓ Internal routing completed - signal redistributed in asset subsystem\n";
+        std::cout << coa.trace_transaction_path(equipment) << "\n";
+    }
+    
+    // Transaction 3: Revenue generation (signal amplification)
+    std::cout << "4. SIGNAL AMPLIFICATION - Revenue Generation:\n";
+    Transaction revenue;
+    revenue.id = "DEMO-003";
+    revenue.description = "Signal amplification through revenue generation subsystem";
+    revenue.entries = {
+        {"1101", 8000.0, 0.0, "Cash input buffer receives amplified signal"},
+        {"4100", 0.0, 8000.0, "Revenue generator produces positive signal"}
+    };
+    
+    if (coa.process_transaction(revenue)) {
+        std::cout << "✓ Signal amplification successful - circuit gained $8,000 energy\n";
+        std::cout << coa.trace_transaction_path(revenue) << "\n";
+    }
+    
+    // Transaction 4: Expense (signal consumption)
+    std::cout << "5. SIGNAL CONSUMPTION - Operating Expenses:\n";
+    Transaction expense;
+    expense.id = "DEMO-004";
+    expense.description = "Signal consumption by expense subsystem modules";
+    expense.entries = {
+        {"5101", 3000.0, 0.0, "Salary expense module consumption"},
+        {"5102", 1200.0, 0.0, "Rent expense module consumption"},
+        {"1101", 0.0, 4200.0, "Cash node signal reduction for consumption"}
+    };
+    
+    // Add rent expense account
+    coa.add_account("5102", "Rent Expense", AccountType::EXPENSE, "5100");
+    
+    if (coa.process_transaction(expense)) {
+        std::cout << "✓ Signal consumption completed - circuit consumed $4,200 energy\n";
+        std::cout << coa.trace_transaction_path(expense) << "\n";
+    }
+    
+    // Transaction 5: Loan (external power injection)
+    std::cout << "6. EXTERNAL POWER INJECTION - Bank Loan:\n";
+    coa.add_account("2201", "Bank Loan", AccountType::LIABILITY, "2200");
+    Transaction loan;
+    loan.id = "DEMO-005";
+    loan.description = "External power injection from banking power grid";
+    loan.entries = {
+        {"1101", 20000.0, 0.0, "Cash buffer receives external power"},
+        {"2201", 0.0, 20000.0, "Liability module registers external power contract"}
+    };
+    
+    if (coa.process_transaction(loan)) {
+        std::cout << "✓ External power injection successful - $20,000 from banking grid\n";
+        std::cout << coa.trace_transaction_path(loan) << "\n";
+    }
+    
+    // Final circuit state
+    std::cout << "7. FINAL CIRCUIT STATE ANALYSIS:\n";
+    std::cout << coa.generate_balance_sheet() << "\n";
+    std::cout << coa.generate_income_statement() << "\n";
+    
+    // Circuit analysis
+    std::cout << "8. CIRCUIT ANALYSIS SUMMARY:\n";
+    std::cout << "=== HARDWARE CIRCUIT PERFORMANCE METRICS ===\n";
+    std::cout << "Total Signal Injections: $78,000 (Investment + Revenue + Loan)\n";
+    std::cout << "Total Signal Consumption: $19,200 (Equipment + Expenses)\n";
+    std::cout << "Net Circuit Gain: $58,800\n";
+    std::cout << "Primary Storage Node (Cash): $" << coa.get_balance("1101") << "\n";
+    std::cout << "Circuit Efficiency: " << std::fixed << std::setprecision(1) 
+              << (1.0 - 19200.0/78000.0) * 100 << "%\n";
+    std::cout << "Active Transaction Log Entries: " << coa.get_transaction_count() << "\n\n";
+    
+    std::cout << "Demo scenario completed! Circuit is operating efficiently.\n";
 }
 
 static void print_usage(int /* argc */, char** argv) {
@@ -584,25 +780,37 @@ int main(int argc, char** argv) {
         }
     }
     
-    if (model_path.empty()) {
-        std::cerr << "Error: No model specified. Use -m MODEL_FILE\n";
+    if (model_path.empty() && !demo && !interactive) {
+        std::cerr << "Error: No model specified. Use -m MODEL_FILE (or --demo/--interactive for modes without LLM)\n";
         print_usage(argc, argv);
         return 1;
     }
     
     // Initialize simulator
     FinancialSimulator simulator;
-    if (!simulator.initialize(model_path, n_predict, n_gpu_layers)) {
-        return 1;
-    }
     
-    if (interactive) {
-        simulator.run_interactive_simulation();
-    } else if (demo) {
+    if (demo) {
+        // Demo mode without LLM
+        std::cout << "Running demo mode without LLM initialization...\n";
+        simulator.initialize_coa_only();
         run_demo_scenario(simulator);
+    } else if (interactive && model_path.empty()) {
+        // Interactive mode without LLM
+        std::cout << "Running interactive mode without LLM...\n";
+        simulator.initialize_coa_only();
+        simulator.run_interactive_simulation();
     } else {
-        std::cout << "Financial Circuit Simulator ready. Use --interactive for interactive mode.\n";
-        std::cout << "Use --help for all available options.\n";
+        // Full mode with LLM
+        if (!simulator.initialize(model_path, n_predict, n_gpu_layers)) {
+            return 1;
+        }
+        
+        if (interactive) {
+            simulator.run_interactive_simulation();
+        } else {
+            std::cout << "Financial Circuit Simulator ready. Use --interactive for interactive mode.\n";
+            std::cout << "Use --help for all available options.\n";
+        }
     }
     
     return 0;
