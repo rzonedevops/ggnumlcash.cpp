@@ -12119,7 +12119,7 @@ static std::string ggml_backend_vk_get_device_pci_id(int device_idx) {
     const uint32_t pci_domain = pci_bus_info.pciDomain;
     const uint32_t pci_bus = pci_bus_info.pciBus;
     const uint32_t pci_device = pci_bus_info.pciDevice;
-    const uint32_t pci_function = pci_bus_info.pciFunction;
+    const uint8_t pci_function = (uint8_t) pci_bus_info.pciFunction; // pci function is between 0 and 7, prevent printf overflow warning
 
     char pci_bus_id[16] = {};
     snprintf(pci_bus_id, sizeof(pci_bus_id), "%04x:%02x:%02x.%x", pci_domain, pci_bus, pci_device, pci_function);
