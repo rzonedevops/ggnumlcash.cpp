@@ -12441,8 +12441,8 @@ static bool ggml_backend_vk_device_supports_op(ggml_backend_dev_t dev, const ggm
                 }
 
                 if (
-                    src0_type == GGML_TYPE_F32 && src1_type == GGML_TYPE_I32 ||
-                    src0_type == GGML_TYPE_I32 && src1_type == GGML_TYPE_F32
+                    (src0_type == GGML_TYPE_F32 && src1_type == GGML_TYPE_I32) ||
+                    (src0_type == GGML_TYPE_I32 && src1_type == GGML_TYPE_F32)
                 ) {
                     return true;
                 }
