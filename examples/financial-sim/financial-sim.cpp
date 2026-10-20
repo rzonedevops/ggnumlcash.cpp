@@ -1,4 +1,5 @@
 #include "llama.h"
+#include "financial-backend.h"
 
 #include <cassert>
 #include <cinttypes>
@@ -333,17 +334,29 @@ private:
     ChartOfAccounts coa;
     
 public:
-    bool initialize(const std::string& model_file, int predict_tokens = 512, int gpu_layers = 0) {
+    bool initialize(const std::string& model_file, int predict_tokens = 512, int gpu_layers = -1, const std::string& backend = "auto") {
         model_path = model_file;
         n_predict = predict_tokens;
         n_gpu_layers = gpu_layers;
         
         // Load dynamic backends
         ggml_backend_load_all();
+
+        ggml_backend_dev_t device = financial_backend_select(backend.c_str());
+        if (!device) {
+            std::cerr << "Error: Requested backend '" << backend << "' is not available\n";
+            return false;
+        }
+        ggml_backend_dev_t devices[] = { device, nullptr };
         
         // Initialize llama model
         llama_model_params model_params = llama_model_default_params();
         model_params.n_gpu_layers = n_gpu_layers;
+        model_params.devices = devices;
+
+        std::cout << "Using financial inference backend: "
+                  << ggml_backend_dev_name(device) << " ("
+                  << ggml_backend_reg_name(ggml_backend_dev_backend_reg(device)) << ")\n";
         
         model = llama_model_load_from_file(model_path.c_str(), model_params);
         if (!model) {
@@ -728,7 +741,8 @@ static void print_usage(int /* argc */, char** argv) {
     printf("  -m MODEL_FILE           Path to GGUF model file\n");
     printf("\nOptional options:\n");
     printf("  -n N_PREDICT            Number of tokens to predict (default: 512)\n");
-    printf("  -ngl N_GPU_LAYERS       Number of layers to offload to GPU (default: 0)\n");
+    printf("  -ngl N_GPU_LAYERS       Number of layers to offload to GPU (default: all)\n");
+    printf("  --backend NAME          Backend name or 'auto' (FPGA, CUDA, Metal, other devices, CPU)\n");
     printf("  --interactive           Run in interactive mode\n");
     printf("  --demo                  Run demo scenario\n");
     printf("  --coa FILE              Load chart of accounts from JSON file\n");
@@ -740,7 +754,8 @@ static void print_usage(int /* argc */, char** argv) {
 int main(int argc, char** argv) {
     std::string model_path;
     int n_predict = 512;
-    int n_gpu_layers = 0;
+    int n_gpu_layers = -1;
+    std::string backend = "auto";
     bool interactive = false;
     bool demo = false;
     std::string coa_file;
@@ -766,6 +781,12 @@ int main(int argc, char** argv) {
                 print_usage(argc, argv);
                 return 1;
             }
+        } else if (arg == "--backend") {
+            if (i + 1 >= argc) {
+                std::cerr << "Error: --backend requires a backend name\n";
+                return 1;
+            }
+            backend = argv[++i];
         } else if (arg == "--interactive") {
             interactive = true;
         } else if (arg == "--demo") {
@@ -801,7 +822,7 @@ int main(int argc, char** argv) {
         simulator.run_interactive_simulation();
     } else {
         // Full mode with LLM
-        if (!simulator.initialize(model_path, n_predict, n_gpu_layers)) {
+        if (!simulator.initialize(model_path, n_predict, n_gpu_layers, backend)) {
             return 1;
         }
         

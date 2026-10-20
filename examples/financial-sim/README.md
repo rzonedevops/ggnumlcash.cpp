@@ -21,12 +21,21 @@ This example demonstrates modeling a financial Chart of Accounts (CoA) as virtua
 # Full LLM-powered analysis mode
 ./llama-financial-sim -m model.gguf --interactive
 
+# Select an inference backend (auto prefers FPGA, CUDA, Metal, then available devices)
+./llama-financial-sim -m model.gguf --backend auto
+
 # Load custom chart of accounts
 ./llama-financial-sim -m model.gguf --coa accounts.json
 
 # Trace specific transaction flows
 ./llama-financial-sim -m model.gguf --trace "Transfer $1000 from Cash to Equipment"
 ```
+
+`--backend` accepts `auto` or a case-insensitive GGML device/backend name. Only
+backends built into GGML or registered at runtime are selectable. An FPGA
+backend must be provided as a GGML backend plugin (for example through
+`GGML_BACKEND_PATH`). Backend selection applies to LLM inference; ledger
+transaction arithmetic remains on the CPU.
 
 ## Interactive Commands
 
