@@ -98,3 +98,11 @@ add_executable(${DB_PERSIST_DEMO_TARGET}
 )
 target_link_libraries(${DB_PERSIST_DEMO_TARGET} PRIVATE ${CMAKE_THREAD_LIBS_INIT})
 target_compile_features(${DB_PERSIST_DEMO_TARGET} PRIVATE cxx_std_17)
+
+# Test for market-data memory management (no model required)
+set(MARKET_DATA_MEMORY_TEST_TARGET test-market-data-memory)
+add_executable(${MARKET_DATA_MEMORY_TEST_TARGET}
+    test-market-data-memory.cpp
+    market-data-memory.cpp
+)
+target_compile_features(${MARKET_DATA_MEMORY_TEST_TARGET} PRIVATE cxx_std_17)
