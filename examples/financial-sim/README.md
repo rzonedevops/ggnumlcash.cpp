@@ -110,3 +110,20 @@ Tests validate:
 - Transaction balancing (conservation laws)
 - Signal routing through financial circuits
 - Hardware analogy terminology and signal polarity
+
+## Financial Tensor Operations
+
+`financial-tensor.h` provides GGML graph operations for option pricing and Greeks,
+Monte Carlo payoffs, portfolio matrix calculations, return statistics, cash flows,
+and derivative payoffs. Inputs are F32 tensors; tensor arguments can use GGML's
+standard broadcasting rules. Black-Scholes functions expect positive spot, strike,
+volatility, and time-to-expiry. Annualized rates and periods must use matching
+units.
+
+Build and run the numerical accuracy tests and the scalar-reference benchmark:
+
+```bash
+cmake --build build --target test-financial-tensor bench-financial-tensor
+./build/bin/test-financial-tensor
+./build/bin/bench-financial-tensor
+```
