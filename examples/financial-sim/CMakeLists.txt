@@ -1,8 +1,17 @@
 set(TARGET llama-financial-sim)
-add_executable(${TARGET} financial-sim.cpp)
+add_executable(${TARGET} financial-sim.cpp financial-backend.cpp)
 install(TARGETS ${TARGET} RUNTIME)
 target_link_libraries(${TARGET} PRIVATE common llama ${CMAKE_THREAD_LIBS_INIT})
 target_compile_features(${TARGET} PRIVATE cxx_std_17)
+
+# Test for financial backend selection
+set(BACKEND_TEST_TARGET test-financial-backend)
+add_executable(${BACKEND_TEST_TARGET}
+    test-financial-backend.cpp
+    financial-backend.cpp
+)
+target_link_libraries(${BACKEND_TEST_TARGET} PRIVATE ggml)
+target_compile_features(${BACKEND_TEST_TARGET} PRIVATE cxx_std_17)
 
 # Virtual Device Admin Utility (standalone, no model required)
 set(ADMIN_TARGET llama-device-admin)
