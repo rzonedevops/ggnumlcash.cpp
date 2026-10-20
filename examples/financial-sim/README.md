@@ -111,6 +111,24 @@ Tests validate:
 - Signal routing through financial circuits
 - Hardware analogy terminology and signal polarity
 
+## Market Data Memory
+
+`MarketDataPool` preallocates fixed-size, cache-line-aligned ticks and reuses released slots.
+Create one pool per worker or NUMA shard to keep allocations local and avoid shared allocator
+contention. `MarketDataRing` keeps a bounded, contiguous window of recent ticks.
+
+`HistoricalMarketDataFile` maps read-only version-1 history files. The format starts with a
+64-byte header (`GGMDATA1`, version, 64-byte record size, and record count), followed by
+little-endian 64-byte tick records. Reads validate the file length and decode records without
+relying on host endianness or alignment.
+
+Build and run the focused test with:
+
+```bash
+cmake --build build --target test-market-data-memory
+./build/bin/test-market-data-memory
+```
+
 ## Financial Tensor Operations
 
 `financial-tensor.h` provides GGML graph operations for option pricing and Greeks,
