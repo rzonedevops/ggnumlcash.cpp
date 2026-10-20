@@ -98,3 +98,18 @@ add_executable(${DB_PERSIST_DEMO_TARGET}
 )
 target_link_libraries(${DB_PERSIST_DEMO_TARGET} PRIVATE ${CMAKE_THREAD_LIBS_INIT})
 target_compile_features(${DB_PERSIST_DEMO_TARGET} PRIVATE cxx_std_17)
+
+# Financial tensor operation tests and benchmark (no model required)
+set(FINANCIAL_TENSOR_TEST_TARGET test-financial-tensor)
+add_executable(${FINANCIAL_TENSOR_TEST_TARGET} test-financial-tensor.cpp)
+target_link_libraries(${FINANCIAL_TENSOR_TEST_TARGET} PRIVATE ggml)
+target_compile_features(${FINANCIAL_TENSOR_TEST_TARGET} PRIVATE cxx_std_17)
+if (LLAMA_BUILD_TESTS)
+    add_test(NAME ${FINANCIAL_TENSOR_TEST_TARGET} COMMAND $<TARGET_FILE:${FINANCIAL_TENSOR_TEST_TARGET}>)
+    set_tests_properties(${FINANCIAL_TENSOR_TEST_TARGET} PROPERTIES LABELS financial)
+endif()
+
+set(FINANCIAL_TENSOR_BENCH_TARGET bench-financial-tensor)
+add_executable(${FINANCIAL_TENSOR_BENCH_TARGET} bench-financial-tensor.cpp)
+target_link_libraries(${FINANCIAL_TENSOR_BENCH_TARGET} PRIVATE ggml)
+target_compile_features(${FINANCIAL_TENSOR_BENCH_TARGET} PRIVATE cxx_std_17)
