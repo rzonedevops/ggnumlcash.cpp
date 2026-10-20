@@ -114,11 +114,17 @@ Tests validate:
 ## Financial Tensor Operations
 
 `financial-tensor.h` provides GGML graph operations for option pricing and Greeks,
-Monte Carlo payoffs, portfolio matrix calculations, return statistics, cash flows,
-and derivative payoffs. Inputs are F32 tensors; tensor arguments can use GGML's
-standard broadcasting rules. Black-Scholes functions expect positive spot, strike,
-volatility, and time-to-expiry. Annualized rates and periods must use matching
-units.
+Monte Carlo payoffs, portfolio matrix calculations, parametric VaR and expected
+shortfall, return statistics, cash flows, and derivative payoffs. Risk measures use
+positive loss conventions; parametric VaR and expected shortfall take a positive
+normal-tail z-score (not a confidence probability). Inputs are F32 tensors; tensor
+arguments can use GGML's
+standard broadcasting rules. Portfolio covariance matrices are square, with one
+row and column per asset. Black-Scholes functions expect positive spot, strike,
+volatility, and time-to-expiry. Rates and periods must use matching units.
+Present/future value functions use continuous compounding; annuity and bond
+functions use discrete compounding and require a nonzero rate. Growing perpetuity
+values require the discount rate to exceed the growth rate.
 
 Build and run the numerical accuracy tests and the scalar-reference benchmark:
 
